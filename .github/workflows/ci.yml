@@ -10,9 +10,6 @@ permissions:
   pull-requests: write
   issues: write
 
-env:
-  CARGO_TERM_COLOR: never
-
 jobs:
   rust:
     name: Rust engine
@@ -20,21 +17,25 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-      - name: engine check (fmt, clippy, tests, bench)
+      - name: format (apply, so diffs are visible + committed back by hand)
+        run: cd rust && cargo fmt --all
+      - name: engine check (clippy, tests, bench)
         run: ./scripts/ci-rust.sh
+      - name: upload formatted sources
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustfmt
+          path: rust/**/*.rs
       - name: report
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           status=$([ "${{ job.status }}" = success ] && echo pass || echo fail)
-          ./scripts/ci-report.sh rust "Rust engine (fmt/clippy/tests/bench)" ci-rust.log "$status"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: rust-logs
-          path: ci-rust.log
-          if-no-files-found: ignore
+          ./scripts/ci-report.sh rust "Rust engine (clippy/tests/bench)" ci-rust.log "$status"

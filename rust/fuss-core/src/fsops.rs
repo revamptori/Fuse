@@ -248,7 +248,7 @@ pub fn set_file_times(path: &Path, t: std::time::SystemTime) {
         Err(_) => return,
     };
     let ts = Timespec { tv_sec: d.as_secs() as i64, tv_nsec: d.subsec_nanos() as i64 };
-    let times = [ts, ts];
+    let times = [Timespec { tv_sec: ts.tv_sec, tv_nsec: ts.tv_nsec }, ts];
     // utimensat needs UTIME_OMIT etc; futimens on an fd is simpler and works on
     // both Android (bionic) and the Linux host used for tests.
     let file = match File::options().write(true).open(path) {

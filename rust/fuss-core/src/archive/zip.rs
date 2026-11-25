@@ -217,13 +217,8 @@ pub fn list_zip(path: &Path, cancel: &CancelToken) -> Result<ZipListing> {
                 }
                 if tag == 0x0001 {
                     let mut cur = &extra[i + 4..i + 4 + sz];
-                    let mut take = |v: &mut u64| {
-                        if *v == 0xFFFF_FFFF {
-                            if let Ok(x) = read_u64(&mut cur) {
-                                *v = x;
-                            }
-                        }
-                    };
+                    // ZIP64 field order: uncompressed, compressed, offset, disk.
+                    // Each is present only when the 32-bit field was saturated.
                     if size == 0xFFFF_FFFF {
                         if let Ok(x) = read_u64(&mut cur) {
                             size = x;
@@ -234,7 +229,11 @@ pub fn list_zip(path: &Path, cancel: &CancelToken) -> Result<ZipListing> {
                             comp = x;
                         }
                     }
-                    take(&mut offset);
+                    if offset == 0xFFFF_FFFF {
+                        if let Ok(x) = read_u64(&mut cur) {
+                            offset = x;
+                        }
+                    }
                 }
                 i += 4 + sz;
             }

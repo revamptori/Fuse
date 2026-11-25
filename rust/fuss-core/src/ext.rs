@@ -6,7 +6,7 @@
 //! extensions, everything else falls back to `Other`.
 
 /// Coarse classification used for icons, previews and statistics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub enum FileKind {
     Directory,
     Image,
@@ -21,6 +21,7 @@ pub enum FileKind {
     Apk,
     Code,
     Font,
+    #[default]
     Other,
 }
 

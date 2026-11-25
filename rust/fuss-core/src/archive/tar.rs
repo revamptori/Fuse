@@ -345,17 +345,14 @@ pub fn extract_entry(
         std::fs::create_dir_all(parent).map_err(|e| FsError::from_io_path(e, parent))?;
     }
     let compressed = is_gzip(archive);
-    let mut source_file: Option<File> = None;
-    let mut sandbox_dir: Option<PathBuf> = None;
-    if compressed {
-        let t = std::env::temp_dir().join(format!(".fuss-tar-{}-{}.tar", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let (mut f, sandbox_dir): (File, Option<PathBuf>) = if compressed {
+        let t = std::env::temp_dir().join(format!(".fuss-tar-{}-{}.tar", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos()));
         gunzip_to(archive, &t, cancel)?;
-        source_file = Some(File::open(&t).map_err(|e| FsError::from_io_path(e, &t))?);
-        sandbox_dir = Some(t);
+        let file = File::open(&t).map_err(|e| FsError::from_io_path(e, &t))?;
+        (file, Some(t))
     } else {
-        source_file = Some(File::open(archive).map_err(|e| FsError::from_io_path(e, archive))?);
-    }
-    let mut f = source_file.unwrap();
+        (File::open(archive).map_err(|e| FsError::from_io_path(e, archive))?, None)
+    };
     f.seek(SeekFrom::Start(entry.data_offset)).map_err(|e| FsError::from_io_path(e, archive))?;
     let mut out = BufWriter::with_capacity(128 * 1024, File::create(dest).map_err(|e| FsError::from_io_path(e, dest))?);
     let mut remaining = entry.size;
@@ -547,8 +544,7 @@ impl<W: Write> TarWriter<W> {
         // PAX header for long paths keeps the format standards-compliant.
         if name.len() > MAX_NAME {
             let record = format!("path={name}\n");
-            let len = record.len() + 1 + record.len().to_string().len();
-            // Recompute length until stable (self-referential record size).
+            // Recompute length until stable (the length digits are part of it).
             let mut len = record.len() + 3;
             loop {
                 let candidate = record.len() + 1 + len.to_string().len();

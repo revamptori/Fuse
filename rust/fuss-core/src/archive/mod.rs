@@ -6,6 +6,7 @@
 //! as unsupported instead of pretending. RAR likewise.
 
 pub mod crc32;
+pub mod inflate_stream;
 pub mod tar;
 pub mod zip;
 

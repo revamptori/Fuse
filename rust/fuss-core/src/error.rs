@@ -53,7 +53,7 @@ impl ErrorCode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FsError {
     pub code: ErrorCode,
     pub message: String,
