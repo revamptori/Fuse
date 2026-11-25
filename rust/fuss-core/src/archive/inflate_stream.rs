@@ -47,12 +47,6 @@ impl<R: Read> DeflateDecoder<R> {
         }
     }
 
-    /// Bytes of uncompressed input remaining in the internal buffer (used by the
-    /// gzip wrapper to hand any read-ahead back to the next member).
-    fn buffered_input(&self) -> &[u8] {
-        &self.in_buf[self.in_pos..self.in_len]
-    }
-
     fn fill(&mut self) -> io::Result<bool> {
         if self.in_pos < self.in_len {
             return Ok(true);
@@ -126,7 +120,7 @@ impl<W: Write> DeflateEncoder<W> {
     pub fn new(inner: W, level: u8) -> Self {
         DeflateEncoder {
             inner,
-            comp: Box::new(CompressorOxide::new(level)),
+            comp: Box::new(CompressorOxide::new(level as u32)),
             out_buf: vec![0u8; WINDOW],
             finished: false,
         }
@@ -234,7 +228,11 @@ impl<R: Read> GzipDecoder<R> {
             return Ok(true);
         }
         loop {
-            match self.r().read(&mut self.in_buf) {
+            // Split the borrow: read into a local, then copy into in_buf.
+            let mut tmp = std::mem::take(&mut self.in_buf);
+            let result = self.r().read(&mut tmp);
+            self.in_buf = tmp;
+            match result {
                 Ok(0) => return Ok(false),
                 Ok(n) => {
                     self.in_pos = 0;

@@ -28,7 +28,6 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-const CLASS: &str = "cloud/fuss/core/FussNative";
 
 // ---------------------------------------------------------------------------
 // Cancel handles
@@ -178,8 +177,7 @@ fn string_vec(env: &mut JNIEnv, arr: JObject) -> Option<Vec<PathBuf>> {
 // ---------------------------------------------------------------------------
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_version(env: JNIEnv, _c: JClass) -> jstring {
-    let mut env = env;
+pub extern "system" fn Java_cloud_fuss_core_FussNative_version(mut env: JNIEnv, _c: JClass) -> jstring {
     match env.new_string(format!(
         "{} (rustc {})",
         fuss_core::VERSION,
@@ -193,8 +191,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_version(env: JNIEnv, _c: 
 /// Runs the engine self-test; returns "name=ok;name=fail" style report or
 /// throws. Used by the app's diagnostics screen and by instrumented tests.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_selfTest(env: JNIEnv, _c: JClass) -> jstring {
-    let mut env = env;
+pub extern "system" fn Java_cloud_fuss_core_FussNative_selfTest(mut env: JNIEnv, _c: JClass) -> jstring {
     let report = match catch_unwind(|| fuss_core::self_test()) {
         Ok(r) => r,
         Err(_) => vec![("panic".to_string(), false)],
@@ -354,7 +351,6 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_isReadable(mut env: JNIEn
 
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_canonicalize(mut env: JNIEnv, _c: JClass, path: JString) -> jstring {
-    let mut env = env;
     let raw = match jstr(&mut env, &path) {
         Some(s) => s,
         None => return std::ptr::null_mut(),
@@ -371,8 +367,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_canonicalize(mut env: JNI
 
 /// MIME type for a name; empty string means unknown.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_mimeType(env: JNIEnv, _c: JClass, name: JString, is_dir: jboolean) -> jstring {
-    let mut env = env;
+pub extern "system" fn Java_cloud_fuss_core_FussNative_mimeType(mut env: JNIEnv, _c: JClass, name: JString, is_dir: jboolean) -> jstring {
     let n = match jstr(&mut env, &name) {
         Some(s) => s,
         None => return std::ptr::null_mut(),
@@ -543,7 +538,6 @@ fn op_result_bytes(env: &mut JNIEnv, stats: &OpStats, outputs: Vec<String>) -> j
 
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_createFile(mut env: JNIEnv, _c: JClass, dir: JString, name: JString) -> jstring {
-    let mut env = env;
     let d = match path_of(&mut env, &dir) {
         Some(d) => d,
         None => return std::ptr::null_mut(),
@@ -566,7 +560,6 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_createFile(mut env: JNIEn
 
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_createDir(mut env: JNIEnv, _c: JClass, dir: JString, name: JString) -> jstring {
-    let mut env = env;
     let d = match path_of(&mut env, &dir) {
         Some(d) => d,
         None => return std::ptr::null_mut(),
@@ -589,7 +582,6 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_createDir(mut env: JNIEnv
 
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_rename(mut env: JNIEnv, _c: JClass, path: JString, new_name: JString) -> jstring {
-    let mut env = env;
     let p = match path_of(&mut env, &path) {
         Some(p) => p,
         None => return std::ptr::null_mut(),
@@ -1053,3 +1045,49 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_isArchive(mut env: JNIEnv
 // Silence unused-import warnings that only appear on some cfg combinations.
 #[allow(dead_code)]
 fn _keep(_: &Entry, _: &JByteArray) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cancel_handles_roundtrip() {
+        let h = insert_token(CancelToken::new());
+        assert!(!token_for(h).is_cancelled());
+        token_for(h).cancel();
+        assert!(token_for(h).is_cancelled());
+        let mut guard = token_table().lock().unwrap();
+        guard.retain(|(id, _)| *id != h);
+        drop(guard);
+        // Unknown handles must be safe no-ops, never panics.
+        assert!(!token_for(h).is_cancelled());
+    }
+
+    #[test]
+    fn progress_visible_through_handle() {
+        let h = insert_token(CancelToken::new());
+        token_for(h).add_processed(42);
+        assert_eq!(token_for(h).processed(), 42);
+    }
+
+    #[test]
+    fn error_encoding_is_decodable() {
+        let bytes = encode_error("not_found", "gone");
+        let mut r = fuss_core::codec::Reader::new(&bytes);
+        assert_eq!(r.u8(), Some(1));
+        assert_eq!(r.str().as_deref(), Some("not_found"));
+        assert_eq!(r.str().as_deref(), Some("gone"));
+    }
+
+    #[test]
+    fn ok_encoding_roundtrips_payload() {
+        let mut w = fuss_core::codec::Writer::with_capacity(16);
+        w.u64(7);
+        let bytes = encode_ok(w);
+        let mut r = fuss_core::codec::Reader::new(&bytes);
+        assert_eq!(r.u8(), Some(0));
+        let payload = r.bytes().unwrap();
+        let mut inner = fuss_core::codec::Reader::new(payload);
+        assert_eq!(inner.u64(), Some(7));
+    }
+}

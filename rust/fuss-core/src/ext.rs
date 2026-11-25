@@ -86,7 +86,7 @@ pub fn classify_name(name: &str, is_dir: bool) -> FileKind {
         "zip" | "rar" | "7z" | "tar" | "gz" | "tgz" | "bz2" | "tbz2" | "xz" | "txz" | "zst"
         | "lz4" | "lzma" | "jar" | "war" | "iso" | "cab" | "zipx" => FileKind::Archive,
         "apk" | "apks" | "xapk" | "aab" => FileKind::Apk,
-        "rs" | "kt" | "kts" | "java" | "c" | "h" | "cc" | "cpp" | "hpp" | "py" | "js" | "ts"
+        "rs" | "kt" | "kts" | "java" | "c" | "h" | "cc" | "cpp" | "hpp" | "py" | "js"
         | "tsx" | "jsx" | "go" | "rb" | "php" | "swift" | "sh" | "bash" | "zsh" | "fish"
         | "lua" | "pl" | "sql" | "json" | "yaml" | "yml" | "xml" | "html" | "htm" | "css"
         | "scss" | "toml" | "gradle" | "makefile" | "cmake" | "asm" | "s" | "dart" | "ex"

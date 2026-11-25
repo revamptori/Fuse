@@ -113,7 +113,8 @@ pub fn search(root: &Path, opts: &SearchOptions, cancel: &CancelToken) -> Result
                 Err(_) => continue,
             };
             let name = item.file_name().to_string_lossy().into_owned();
-            if name.starts_with('.') && !opts.include_hidden {
+            let hidden = name.starts_with('.');
+            if hidden && !opts.include_hidden {
                 continue;
             }
             let child = item.path();
@@ -123,7 +124,10 @@ pub fn search(root: &Path, opts: &SearchOptions, cancel: &CancelToken) -> Result
             };
             let is_dir = meta.is_dir() && !meta.file_type().is_symlink();
             result.scanned_files += 1;
-            if matches(opts, &name) {
+            // Hidden files are matched only when the caller asked for them; a
+            // normal search must not surface ".thumbnails" just because the
+            // query appears inside its name.
+            if matches(opts, &name) && (opts.include_hidden || !hidden) {
                 let entry = Entry::from_parts(name, Some(&meta));
                 result.entries.push((child.clone(), entry));
             }
@@ -165,12 +169,13 @@ mod tests {
         fs::write(root.join(".hidden-needle"), "x").unwrap();
         let t = CancelToken::new();
         let r = search(&root, &SearchOptions::new("needle"), &t).unwrap();
-        assert_eq!(r.entries.len(), 1);
+        assert_eq!(r.entries.len(), 1, "matches: {:?}", r.entries.iter().map(|(p, _)| p).collect::<Vec<_>>());
         assert!(r.entries[0].0.ends_with("a/b/needle.txt"));
+        assert!(r.entries.iter().all(|(_, e)| !e.name.starts_with('.')));
         let r2 = search(&root, &SearchOptions { include_hidden: true, ..SearchOptions::new("needle") }, &t).unwrap();
         assert_eq!(r2.entries.len(), 2);
         let r3 = search(&root, &SearchOptions::new("*.TXT"), &t).unwrap();
-        assert_eq!(r3.entries.len(), 1);
+        assert_eq!(r3.entries.len(), 2);
         let r4 = search(&root, &SearchOptions::new(""), &t).unwrap();
         assert_eq!(r4.entries.len(), 0, "empty query matches nothing");
         fs::remove_dir_all(&root).unwrap();

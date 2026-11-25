@@ -108,13 +108,47 @@ fn main() {
         std::hint::black_box(l.entries.len());
     });
 
-    // Recursive delete of the destination tree.
-    bench("delete tree (500 files)", 3, || {
-        copy_file(&small_src.join("s0.bin"), &small_dst.join("seed.bin"), CollisionMode::Overwrite, &cancel).unwrap();
-        let mut stats = OpStats::default();
-        fuss_core::fsops::delete_path(&small_dst, &cancel, &mut stats).unwrap();
-        fs::create_dir_all(&small_dst).unwrap();
+    // Recursive delete of a real 2 000-file tree, re-created each iteration.
+    let del_src = root.join("del_src");
+    fs::create_dir_all(del_src.join("a/b")).unwrap();
+    for i in 0..2_000 {
+        fs::write(del_src.join(format!("a/b/f{i}.bin")), vec![1u8; 512]).unwrap();
+    }
+    bench_setup(
+        "delete tree (2 000 files)",
+        5,
+        || {
+            let work = root.join("del_work");
+            let _ = fs::remove_dir_all(&work);
+            let mut stats = OpStats::default();
+            fuss_core::fsops::copy_recursive(&del_src, &work, CollisionMode::Fail, &cancel, &mut stats).unwrap();
+        },
+        || {
+            let work = root.join("del_work");
+            let mut stats = OpStats::default();
+            fuss_core::fsops::delete_path(&work, &cancel, &mut stats).unwrap();
+            std::hint::black_box(stats.files);
+        },
+    );
+
+    // Cancel latency: how long does a 256 MiB copy take to notice a cancel?
+    bench("cancel a 256 MiB copy", 5, || {
+        let token = CancelToken::new();
+        token.cancel();
+        let e = copy_file(&large, &root.join("cancel_copy.bin"), CollisionMode::Overwrite, &token);
+        assert!(e.is_err(), "cancelled copy must fail");
     });
+    // Many small JNI-style encodings (simulates one 200-entry chunk).
+    {
+        let listing = list_dir(&big, ListOptions { limit: 200, ..Default::default() }, &cancel).unwrap();
+        bench("encode 200-entry listing chunk", 200, || {
+            let mut w = fuss_core::codec::Writer::with_capacity(listing.entries.len() * 64);
+            for e in &listing.entries {
+                w.entry(e);
+            }
+            std::hint::black_box(w.len());
+        });
+    }
 
     let _ = fs::remove_dir_all(&root);
     println!("{}", "-".repeat(82));
@@ -126,6 +160,21 @@ fn main() {
         }
     }
     let _ = Path::new("/");
+}
+
+/// Benchmark where per-iteration setup is excluded from the timing.
+fn bench_setup<P: FnMut(), F: FnMut()>(name: &str, iters: usize, mut prep: P, mut f: F) {
+    let mut times = Vec::with_capacity(iters);
+    for _ in 0..iters {
+        prep();
+        let t = Instant::now();
+        f();
+        times.push(t.elapsed().as_secs_f64() * 1000.0);
+    }
+    times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let median = times[times.len() / 2];
+    let p90 = times[(times.len() as f64 * 0.9) as usize % times.len()];
+    println!("{:<44} {:>10.2}ms {:>10.2}ms {:>10}", name, median, p90, iters);
 }
 
 fn bench<F: FnMut()>(name: &str, iters: usize, mut f: F) {

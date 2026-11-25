@@ -144,6 +144,11 @@ impl FsError {
     pub fn from_io_path(err: io::Error, path: &std::path::Path) -> Self {
         Self::from_io(err, Some(path))
     }
+
+    /// Classify an `io::Error` that has no specific path to report.
+    pub fn from_io_pathless(err: io::Error) -> Self {
+        Self::from_io(err, None)
+    }
 }
 
 impl fmt::Display for FsError {

@@ -15,3 +15,7 @@
 # Build outputs
 /dist/
 /bench-results/
+
+# Locally vendored crate sources (see scripts/vendor-deps.sh)
+/rust/vendor/
+/rust/.cargo/config.toml

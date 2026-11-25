@@ -79,7 +79,7 @@ pub fn unique_name(dir: &Path, name: &str) -> String {
         return name.to_string();
     }
     let (stem, ext) = match name.rfind('.') {
-        Some(i) if i > 0 => (&name[..i], &name[i..]),
+        Some(i) if i > 0 && name[..i].chars().any(|c| c != '.') => (&name[..i], &name[i..]),
         _ => (name, ""),
     };
     for i in 1..10_000u32 {
@@ -146,9 +146,9 @@ pub fn copy_stream(
             Ok(0) => break,
             Ok(n) => n,
             Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
-            Err(e) => return Err(FsError::from_io(None, e)),
+            Err(e) => return Err(FsError::from_io_pathless(e)),
         };
-        dst.write_all(&buf[..n]).map_err(|e| FsError::from_io(None, e))?;
+        dst.write_all(&buf[..n]).map_err(|e| FsError::from_io_pathless(e))?;
         total += n as u64;
         cancel.add_processed(n as u64);
     }
@@ -692,7 +692,6 @@ pub fn delete_batch(sources: &[PathBuf], cancel: Arc<CancelToken>) -> BatchResul
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write as _;
 
     fn tmpdir(tag: &str) -> PathBuf {
         let p = std::env::temp_dir().join(format!("fuss-test-{}-{}-{}", tag, std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
@@ -798,6 +797,8 @@ mod tests {
         assert_eq!(unique_name(&root, "a.txt"), "a (1).txt");
         fs::write(root.join("a (1).txt"), "x").unwrap();
         assert_eq!(unique_name(&root, "a.txt"), "a (2).txt");
+        assert_eq!(unique_name(&root, ".hidden"), ".hidden");
+        fs::write(root.join(".hidden"), "x").unwrap();
         assert_eq!(unique_name(&root, ".hidden"), ".hidden (1)");
         fs::remove_dir_all(&root).unwrap();
     }

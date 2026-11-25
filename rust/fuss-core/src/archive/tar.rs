@@ -469,12 +469,17 @@ pub fn extract_tar(archive: &Path, dest_dir: &Path, cancel: &CancelToken) -> Res
 // ---------------------------------------------------------------------------
 
 fn write_num_octal(field: &mut [u8], value: u64) {
-    let s = format!("{:0width$o}", value, width = field.len() - 1);
+    // Standard ustar: zero-padded octal digits followed by NUL.
+    let width = field.len() - 1;
+    let s = format!("{:0width$o}", value, width = width);
     let bytes = s.as_bytes();
-    let start = field.len() - 1 - bytes.len().min(field.len() - 1);
-    field[..field.len() - 1].fill(b'0');
-    field[start..field.len() - 1].copy_from_slice(&bytes[bytes.len().saturating_sub(field.len() - 1 - start)..]);
-    field[field.len() - 1] = 0;
+    // If the value overflows the field, keep the low digits (matches bsdtar).
+    let start = bytes.len().saturating_sub(width);
+    let digits = &bytes[start..];
+    let pad = width - digits.len();
+    field[..pad].fill(b'0');
+    field[pad..width].copy_from_slice(digits);
+    field[width] = 0;
 }
 
 fn set_checksum(hdr: &mut [u8; BLOCK]) {
@@ -630,6 +635,7 @@ pub fn add_tree(writer: &mut TarWriter<impl Write>, root: &Path, cancel: &Cancel
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::archive::inflate_stream::DeflateEncoder;
 
     fn tmp(tag: &str) -> PathBuf {
         let p = std::env::temp_dir().join(format!("fuss-tar-{}-{}-{}", tag, std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
@@ -688,10 +694,29 @@ mod tests {
         let d = tmp("gz");
         let tar_path = build_tar(&d);
         let data = std::fs::read(&tar_path).unwrap();
-        let gz = miniz_oxide::deflate::compress_to_vec(&data, 6);
+        // Build a real gzip container (header + deflate + crc/isize).
+        let mut enc = DeflateEncoder::new(Vec::new(), 6);
+        {
+            use std::io::Write as _;
+            enc.write_all(&data).unwrap();
+            enc.finish().unwrap();
+        }
+        let raw = enc.into_inner();
+        let mut crc = crate::archive::crc32::Crc32::new();
+        crc.update(&data);
+        let mut gz = vec![0x1F, 0x8B, 8, 0, 0, 0, 0, 0, 0, 0xFF];
+        gz.extend_from_slice(&raw);
+        gz.extend_from_slice(&crc.finish().to_le_bytes());
+        gz.extend_from_slice(&(data.len() as u32).to_le_bytes());
         let tgz = d.join("out.tar.gz");
         std::fs::write(&tgz, &gz).unwrap();
         let cancel = CancelToken::new();
+        let gunzip_target = d.join("debug.tar");
+        let n = gunzip_to(&tgz, &gunzip_target, &cancel).unwrap();
+        let raw_tar = std::fs::read(&gunzip_target).unwrap();
+        assert_eq!(n, raw_tar.len() as u64, "gunzip reported size mismatch");
+        assert_eq!(raw_tar.len(), data.len(), "gunzip output size differs from original tar");
+        assert!(raw_tar[257..262].eq(b"ustar"), "gunzip output is not a tar: {:?}", &raw_tar[257..262]);
         let listing = list_tar(&tgz, &cancel).unwrap();
         assert_eq!(listing.entries.len(), 4);
         let out = d.join("x");

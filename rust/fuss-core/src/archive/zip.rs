@@ -455,7 +455,6 @@ struct CentralRec {
     mod_time: u16,
     mod_date: u16,
     external_attr: u32,
-    is_dir: bool,
 }
 
 /// Streaming ZIP writer.
@@ -530,8 +529,7 @@ impl<W: Write> ZipWriter<W> {
             method: METHOD_STORE,
             mod_time: time,
             mod_date: date,
-            external_attr: (0o40755u32) << 16 | 0x10, // dir bit
-            is_dir: true,
+            external_attr: 0o40755u32 << 16 | 0x10, // dir bit
         });
         Ok(())
     }
@@ -633,8 +631,7 @@ impl<W: Write> ZipWriter<W> {
                 method: METHOD_DEFLATE,
                 mod_time: time,
                 mod_date: date,
-                external_attr: (0o100644u32) << 16,
-                is_dir: false,
+                external_attr: 0o100644u32 << 16,
             });
             Ok(())
         })();
@@ -863,38 +860,77 @@ mod tests {
     }
 
     #[test]
-    fn detects_corruption_via_crc() {
-        let mut bytes = build_sample();
+    fn detects_corruption_via_crc_stored() {
+        // Build a STORE-method zip by hand so a single byte flip is detectable.
+        let payload = b"Hello, ZIP!\n".to_vec();
+        let mut crc = Crc32::new();
+        crc.update(&payload);
+        let name = "hello.txt";
+        let mut bytes = Vec::new();
+        // local header
+        bytes.extend_from_slice(&SIG_LOCAL.to_le_bytes());
+        bytes.extend_from_slice(&20u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes()); // store
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0x21u16.to_le_bytes());
+        bytes.extend_from_slice(&crc.finish().to_le_bytes());
+        bytes.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(name.as_bytes());
+        let data_offset = bytes.len();
+        bytes.extend_from_slice(&payload);
+        let cd_offset = bytes.len() as u32;
+        bytes.extend_from_slice(&SIG_CENTRAL.to_le_bytes());
+        bytes.extend_from_slice(&20u16.to_le_bytes());
+        bytes.extend_from_slice(&20u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0x21u16.to_le_bytes());
+        bytes.extend_from_slice(&crc.finish().to_le_bytes());
+        bytes.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0o100644u32.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(name.as_bytes());
+        let cd_size = (bytes.len() as u32) - cd_offset;
+        bytes.extend_from_slice(&SIG_EOCD.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&cd_size.to_le_bytes());
+        bytes.extend_from_slice(&cd_offset.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+
         let path = write_archive(&bytes, "crc");
         let cancel = CancelToken::new();
         let listing = list_zip(&path, &cancel).unwrap();
-        // Flip one byte of the stored (uncompressed) "Hello" entry data.
-        let entry = listing.entries.iter().find(|e| e.path.ends_with("hello.txt")).unwrap();
-        let mut f = File::open(&path).unwrap();
-        let mut r = open_entry(&mut f, entry, true).unwrap();
-        let mut buf = Vec::new();
-        assert!(r.read_to_end(&mut buf).is_ok());
-        assert_eq!(buf, b"Hello, ZIP!\n");
-        // Corrupt the data byte in place and re-verify.
-        let data_offset = {
-            let mut hdr = [0u8; 30];
-            f.seek(SeekFrom::Start(entry.local_header_offset)).unwrap();
-            f.read_exact(&mut hdr).unwrap();
-            let nl = u16::from_le_bytes([hdr[26], hdr[27]]) as u64;
-            let el = u16::from_le_bytes([hdr[28], hdr[29]]) as u64;
-            entry.local_header_offset + 30 + nl + el
-        };
-        bytes[data_offset as usize] ^= 0xFF;
-        std::fs::write(&path, &bytes).unwrap();
-        let mut f = File::open(&path).unwrap();
-        let mut r = open_entry(&mut f, entry, true).unwrap();
-        let mut err = None;
-        let mut out = Vec::new();
-        match r.read_to_end(&mut out) {
-            Ok(_) => err = None,
-            Err(e) => err = Some(e),
+        assert_eq!(listing.entries.len(), 1);
+        let entry = &listing.entries[0];
+        {
+            let mut f = File::open(&path).unwrap();
+            let mut r = open_entry(&mut f, entry, true).unwrap();
+            let mut buf = Vec::new();
+            r.read_to_end(&mut buf).unwrap();
+            assert_eq!(buf, payload);
         }
-        assert!(err.is_some(), "CRC mismatch must be reported");
+        // Flip a data byte: reading must now fail with a CRC error.
+        let mut corrupted = bytes.clone();
+        corrupted[data_offset] ^= 0xFF;
+        std::fs::write(&path, &corrupted).unwrap();
+        let mut f = File::open(&path).unwrap();
+        let mut r = open_entry(&mut f, entry, true).unwrap();
+        let mut out = Vec::new();
+        assert!(r.read_to_end(&mut out).is_err(), "CRC mismatch must be reported");
         std::fs::remove_file(&path).unwrap();
     }
 
@@ -907,7 +943,9 @@ mod tests {
 
     #[test]
     fn dos_time_roundtrip() {
-        for secs in [0i64, 1_700_000_000, 1_000_000_000, 2_000_000_000] {
+        // 0 is "no timestamp" on the way in and becomes the DOS epoch (1980-01-01).
+        assert_eq!(dos_datetime_to_unix(unix_to_dos(0).1, unix_to_dos(0).0), 315532800);
+        for secs in [1_700_000_000i64, 1_000_000_000, 2_000_000_000] {
             let (t, d) = unix_to_dos(secs);
             let back = dos_datetime_to_unix(d, t);
             assert!((back - secs).abs() <= 2, "{secs} -> {back}");

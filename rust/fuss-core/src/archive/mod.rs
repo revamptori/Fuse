@@ -11,7 +11,7 @@ pub mod tar;
 pub mod zip;
 
 use crate::cancel::CancelToken;
-use crate::error::{ErrorCode, FsError, Result};
+use crate::error::{FsError, Result};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
