@@ -29,6 +29,8 @@ VmHWM:	    4300 kB
 VmRSS:	    3444 kB
 ```
 
+Engine source digest: `d45fa8b3e2b8`
+
 ## What each line measures
 
 - **list 10k files** — one `readdir` + `lstat` per entry, encoded into a single buffer.

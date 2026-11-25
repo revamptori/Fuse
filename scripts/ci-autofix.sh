@@ -18,7 +18,7 @@ fi
 
 # 2. Benchmarks -> markdown (only when the harness actually ran).
 if grep -q 'fuss-bench\|list 10k' ci-rust.log 2>/dev/null; then
-  python3 scripts/bench-to-markdown.py ci-rust.log docs/BENCHMARKS.md \
+  python3 scripts/bench-to-markdown.py ci-rust.log docs/BENCHMARKS.md --if-stale \
     && echo "regenerated docs/BENCHMARKS.md"
 fi
 
