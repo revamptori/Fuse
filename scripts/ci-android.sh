@@ -27,6 +27,12 @@ find "$HERE/android/app/build/outputs/apk" -name '*.apk' -printf '%s %p\n' 2>/de
       printf '%8d bytes  %s\n' "$size" "$(basename "$path")"
       case "$path" in *release*) echo "  ^ release artifact" ;; esac
     done >> "$LOG" 2>&1
+echo "===== compile instrumented tests =====" >> "$LOG"
+# No emulator here, but the androidTest sources must at least compile: they are
+# the device-side contract (real engine, real storage) and a stale API there
+# would only surface much later.
+( cd "$HERE/android" && ./gradlew --no-daemon assembleDebugAndroidTest ) >> "$LOG" 2>&1 \
+  || { echo "!! FAILED: assembleDebugAndroidTest" >> "$LOG"; fail=1; }
 echo "===== unit tests (kotlin) =====" >> "$LOG"
 ( cd "$HERE/android" && ./gradlew --no-daemon testDebugUnitTest ) >> "$LOG" 2>&1 || { echo "!! FAILED: kotlin unit tests" >> "$LOG"; fail=1; }
 echo "===== result: $([ $fail = 0 ] && echo PASS || echo FAIL) =====" >> "$LOG"

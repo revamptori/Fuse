@@ -88,12 +88,25 @@ class FsRepository {
 
     suspend fun copy(sources: List<String>, destDir: String, mode: CollisionMode): OpResult =
         withContext(Dispatchers.IO) {
-            withToken { handle ->
-                Wire.decode(FussNative.copyBatch(sources.toTypedArray(), destDir, mode.wire, handle)) {
-                    decodeOpResult(it)
-                }
-            }
+            withToken { handle -> copyWithHandle(sources, destDir, mode, handle) }
         }
+
+    /**
+     * Copy using a cancel handle owned by the caller.
+     *
+     * Exists for tests that need to cancel mid-transfer from another thread; the
+     * handle is *not* freed here, because the caller may still be waiting on it.
+     */
+    suspend fun copyWithHandle(
+        sources: List<String>,
+        destDir: String,
+        mode: CollisionMode,
+        handle: Long,
+    ): OpResult = withContext(Dispatchers.IO) {
+        Wire.decode(FussNative.copyBatch(sources.toTypedArray(), destDir, mode.wire, handle)) {
+            decodeOpResult(it)
+        }
+    }
 
     suspend fun move(sources: List<String>, destDir: String, mode: CollisionMode): OpResult =
         withContext(Dispatchers.IO) {

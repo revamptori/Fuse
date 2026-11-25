@@ -4,7 +4,6 @@ import android.os.Environment
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import cloud.fuss.core.CollisionMode
-import cloud.fuss.core.FileEntry
 import cloud.fuss.core.FsRepository
 import cloud.fuss.core.FussException
 import cloud.fuss.core.FussNative
@@ -170,7 +169,9 @@ class EngineInstrumentedTest {
             FussNative.cancelToken(handle)
         }
         val r = try {
-            decodeCopy(FussNative.copyBatch(arrayOf(src.absolutePath), dest.absolutePath, CollisionMode.FAIL.wire, handle))
+            // FsRepository owns decoding; the handle is ours so it can be
+            // cancelled from the thread above.
+            repo.copyWithHandle(listOf(src.absolutePath), dest.absolutePath, CollisionMode.FAIL, handle)
         } finally {
             canceller.join(2000)
             FussNative.freeCancelToken(handle)
@@ -183,20 +184,6 @@ class EngineInstrumentedTest {
             assertEquals(48L * 1024 * 1024, File(dest, "big.bin").length())
         }
     }
-
-    /** Decodes the op-result wire format exactly like FsRepository does. */
-    private fun decodeCopy(bytes: ByteArray?): cloud.fuss.core.OpResult =
-        cloud.fuss.core.Wire.decode(bytes) { d ->
-            val files = d.u64()
-            val dirs = d.u64()
-            val total = d.u64()
-            val errors = d.u64()
-            val skipped = d.u64()
-            val hasError = d.u8() != 0
-            val code = if (hasError) d.str() else null
-            val message = if (hasError) d.str() else null
-            cloud.fuss.core.OpResult(files, dirs, total, errors, skipped, code, message, emptyList())
-        }
 
     @Test
     fun storageAnalysisMeasuresRealTree() = runBlocking {
