@@ -1388,7 +1388,6 @@ mod registration_tests {
         out
     }
 
-
     fn jni_type(kotlin: &str) -> Option<&'static str> {
         Some(match kotlin.trim() {
             "String" | "String?" => "Ljava/lang/String;",
@@ -1402,11 +1401,9 @@ mod registration_tests {
         })
     }
 
-
     fn balanced(s: &str) -> bool {
         s.matches('(').count() == s.matches(')').count()
     }
-
 
     fn matching_paren(s: &str) -> usize {
         let mut depth = 0;
@@ -1456,7 +1453,10 @@ mod registration_tests {
     #[test]
     fn signatures_are_instance_style() {
         for (name, sig) in jni_signatures() {
-            assert!(sig.starts_with('('), "{name}: signature must start with '('");
+            assert!(
+                sig.starts_with('('),
+                "{name}: signature must start with '('"
+            );
             assert!(sig.contains(')'), "{name}: unbalanced signature {sig}");
             assert!(
                 !sig.contains("Lcloud/fuss/core/FussNative;"),
@@ -1473,7 +1473,9 @@ mod registration_tests {
         let src = include_str!("lib.rs");
         for (name, _) in jni_signatures() {
             let needle = format!("fn Java_cloud_fuss_core_FussNative_{name}(");
-            let at = src.find(&needle).unwrap_or_else(|| panic!("{name}: function not found"));
+            let at = src
+                .find(&needle)
+                .unwrap_or_else(|| panic!("{name}: function not found"));
             // The receiver is within the first few lines of the declaration.
             let window = &src[at..(at + 400).min(src.len())];
             let window = &window[..window.find("{").unwrap_or(window.len())];
