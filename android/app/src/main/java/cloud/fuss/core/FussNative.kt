@@ -97,9 +97,9 @@ object FussNative {
 /** Thrown when the engine reports a failure; [code] is stable and machine readable. */
 class FussException(
     val code: String,
-    message: String,
+    val engineMessage: String,
     val path: String,
-) : java.io.IOException(if (path.isEmpty()) message else "$message ($path)") {
+) : java.io.IOException(if (path.isEmpty()) engineMessage else "$engineMessage ($path)") {
 
     val isCancellation: Boolean get() = code == "cancelled"
 
@@ -120,6 +120,6 @@ class FussException(
         "unsupported" -> "Not supported"
         "corrupt_archive" -> "Archive is damaged"
         "busy" -> "File is in use"
-        else -> message
+        else -> if (engineMessage.isEmpty()) "Operation failed" else engineMessage
     }
 }

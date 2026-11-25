@@ -93,7 +93,7 @@ class DecoderTest {
             Wire.decode(msg) { it.u32() }
         }
         assertEquals("permission_denied", ex.code)
-        assertEquals("EACCES", ex.message?.substringBefore(" (") ?: "EACCES")
+        assertEquals("EACCES", ex.engineMessage)
         assertEquals("Permission denied", ex.userMessage())
     }
 

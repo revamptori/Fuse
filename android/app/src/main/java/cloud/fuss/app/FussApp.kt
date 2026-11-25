@@ -13,16 +13,18 @@ import android.widget.Toast
 class FussApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // Record the crash, then hand the exception to whatever handler was
+        // installed before us (the platform one in production), so the system
+        // still shows its normal crash UI and restarts the process properly.
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            CrashLog.record(this, throwable)
-            android.os.Process.killProcess(android.os.Process.myPid())
-            kotlin.system.exitProcess(10)
+            runCatching { CrashLog.record(this, throwable) }
+            if (previous != null) {
+                previous.uncaughtException(thread, throwable)
+            } else {
+                android.os.Process.killProcess(android.os.Process.myPid())
+            }
         }
-        uncaughtThread = thread
-    }
-
-    companion object {
-        private var uncaughtThread: Thread? = null
     }
 }
 
