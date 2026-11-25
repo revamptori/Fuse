@@ -8,25 +8,25 @@ On-device figures must be measured on a real device (see docs/PERFORMANCE.md).
 
 | operation | median | p90 | iterations |
 |---|---|---|---|
-| list 10k files (no stat sort) | 26.17ms | 26.59ms | 20 |
-| list 10k files + natural sort | 34.06ms | 34.47ms | 20 |
-| list 10k files + show hidden | 26.13ms | 26.58ms | 20 |
-| sort 10k entries by size | 33.53ms | 33.78ms | 20 |
-| copy 500 x 4 KiB files | 235.92ms | 269.81ms | 5 |
-| copy 256 MiB (streamed) | 1480.69ms | 1519.74ms | 3 |
-| dir_size 10k files | 23.86ms | 24.50ms | 10 |
-| search 'file_099' in 10k | 24.94ms | 25.38ms | 10 |
-| zip create 500 x 4 KiB | 43.24ms | 85.70ms | 3 |
-| zip list 500 entries | 0.15ms | 0.18ms | 10 |
-| delete tree (2 000 files) | 251.40ms | 258.07ms | 5 |
-| cancel a 256 MiB copy | 0.03ms | 0.03ms | 5 |
+| list 10k files (no stat sort) | 12.87ms | 13.17ms | 20 |
+| list 10k files + natural sort | 18.07ms | 18.28ms | 20 |
+| list 10k files + show hidden | 12.90ms | 13.01ms | 20 |
+| sort 10k entries by size | 17.81ms | 18.30ms | 20 |
+| copy 500 x 4 KiB files | 244.73ms | 312.80ms | 5 |
+| copy 256 MiB (streamed) | 1364.50ms | 1450.26ms | 3 |
+| dir_size 10k files | 11.47ms | 11.88ms | 10 |
+| search 'file_099' in 10k | 12.13ms | 12.29ms | 10 |
+| zip create 500 x 4 KiB | 19.95ms | 20.04ms | 3 |
+| zip list 500 entries | 0.10ms | 0.11ms | 10 |
+| delete tree (2 000 files) | 210.06ms | 229.66ms | 5 |
+| cancel a 256 MiB copy | 0.01ms | 0.02ms | 5 |
 | encode 200-entry listing chunk | 0.00ms | 0.00ms | 200 |
 
 Process high-water mark during the whole benchmark:
 
 ```
-VmHWM:	    4316 kB
-VmRSS:	    3484 kB
+VmHWM:	    4312 kB
+VmRSS:	    3480 kB
 ```
 
 ## What each line measures
