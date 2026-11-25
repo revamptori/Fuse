@@ -12,9 +12,9 @@ measured is labelled as such.
 | Release APK size (per ABI) | < 5 MB | **met**: arm64 release APK is ≈ 0.65 MB (CI-built) |
 | Idle RAM | < 20 MB | not yet measured |
 | Cold start to first frame | < 300 ms | not yet measured |
-| Listing a 10 000-file directory | < 100 ms | engine-only measurement in `docs/BENCHMARKS.md` |
-| Large copy throughput | disk-bound, flat memory | 256 MiB in ~0.8 s on the CI host (engine) |
-| Cancel latency | < 50 ms | 0.03 ms measured in the engine (poll per file/64 KiB) |
+| Listing a 10 000-file directory | < 100 ms | **met**: 12.4 ms median (engine, CI host) |
+| Large copy throughput | disk-bound, flat memory | 256 MiB in 0.68 s; peak RSS 4.8 MB |
+| Cancel latency | < 50 ms | **met**: 0.02–0.03 ms (flag polled per file and per 128 KiB chunk) |
 | Copies buffered in memory | 0 | enforced by design: fixed-buffer streaming |
 
 ## What is already guaranteed by construction

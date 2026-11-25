@@ -60,7 +60,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.apk dist/SHA256SUMS.txt \
+          cp docs/PERFORMANCE_RESULTS.md dist/BENCHMARKS.md
+          gh release create "$GITHUB_REF_NAME" dist/*.apk dist/SHA256SUMS.txt dist/BENCHMARKS.md \
             --title "Fuss $GITHUB_REF_NAME" \
             --notes-file docs/RELEASE_NOTES.md \
-            --verify-tag || gh release upload "$GITHUB_REF_NAME" dist/*.apk dist/SHA256SUMS.txt --clobber
+            --verify-tag || gh release upload "$GITHUB_REF_NAME" dist/*.apk dist/SHA256SUMS.txt dist/BENCHMARKS.md --clobber

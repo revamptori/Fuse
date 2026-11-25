@@ -26,7 +26,7 @@ jobs:
           workspaces: rust
       - name: engine check (fmt, clippy, tests, bench)
         run: ./scripts/ci-rust.sh
-      - name: commit formatting fixes (if any)
+      - name: commit generated artifacts (fmt, benchmarks)
         if: always()
         run: ./scripts/ci-autofix.sh
       - name: report
@@ -36,9 +36,3 @@ jobs:
         run: |
           status=$([ "${{ job.status }}" = success ] && echo pass || echo fail)
           ./scripts/ci-report.sh rust "Rust engine (fmt/clippy/tests/bench)" ci-rust.log "$status"
-      - name: report bench numbers to docs
-        if: always()
-        run: |
-          if grep -q 'fuss-bench' ci-rust.log 2>/dev/null; then
-            python3 scripts/bench-to-markdown.py ci-rust.log docs/BENCHMARKS.md
-          fi

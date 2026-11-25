@@ -172,5 +172,5 @@ No networking, database, DI, analytics, or navigation library is present.
 * **Kotlin unit tests** pin the wire decoder and the formatters.
 * CI builds all three ABIs, assembles debug and release APKs, and runs both test
   suites. Device-level integration tests are described in
-  [docs/TESTING.md](docs/TESTING.md) with the commands to run them on a real
+  [docs/TESTING.md](TESTING.md) with the commands to run them on a real
   phone or emulator.

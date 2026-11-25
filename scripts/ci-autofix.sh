@@ -1,21 +1,34 @@
 #!/usr/bin/env bash
-# When rustfmt reports differences, apply them and push a fixup commit back to
-# the same branch. Cargo's `.cargo/config.toml` vendored-source override is
-# git-ignored, so it never leaks into the commit.
+# Commit build artifacts that must live in the repository:
+#
+#   * `cargo fmt` fixups (formatting is enforced by committing the result rather
+#     than by failing the build, so a contributor never has to run rustfmt);
+#   * docs/BENCHMARKS.md, generated from the benchmark run in the same job.
+#
+# Cargo's vendored-source override (`rust/.cargo/config.toml`) is git-ignored, so
+# it can never leak into these commits.
 set -uo pipefail
-cd "$(dirname "$0")/../rust"
-if cargo fmt --all -- --check >/dev/null 2>&1; then
-  echo "formatting already clean"
-  exit 0
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$HERE"
+
+# 1. Formatting.
+if ( cd rust && ! cargo fmt --all -- --check >/dev/null 2>&1 ); then
+  ( cd rust && cargo fmt --all ) && echo "applied rustfmt"
 fi
-cargo fmt --all
-cd ..
-if git diff --quiet -- rust; then
+
+# 2. Benchmarks -> markdown (only when the harness actually ran).
+if grep -q 'fuss-bench\|list 10k' ci-rust.log 2>/dev/null; then
+  python3 scripts/bench-to-markdown.py ci-rust.log docs/BENCHMARKS.md \
+    && echo "regenerated docs/BENCHMARKS.md"
+fi
+
+# Only commit what this script owns.
+if git diff --quiet -- rust docs/BENCHMARKS.md; then
   echo "nothing to commit"
   exit 0
 fi
 git config user.name "fuss-ci"
 git config user.email "ci@fuss.invalid"
-git add rust
-git commit -m "style: cargo fmt (automated)" -q
+git add rust docs/BENCHMARKS.md
+git commit -q -m "chore: cargo fmt + regenerate benchmarks (automated)"
 git push origin "HEAD:${GITHUB_REF_NAME}" || echo "push failed (protected branch?)"
