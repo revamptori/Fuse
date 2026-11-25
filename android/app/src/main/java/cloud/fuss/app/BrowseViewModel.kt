@@ -42,6 +42,8 @@ data class UiState(
     val totalBytes: Long = 0,
     val parentPath: String? = null,
     val ticks: Long = 0,
+    /** The directory holds more entries than one listing returns. */
+    val truncated: Boolean = false,
 )
 
 data class DialogState(
@@ -135,6 +137,7 @@ class BrowseViewModel(app: Application) : AndroidViewModel(app) {
                             totalBytes = total,
                             parentPath = parent,
                             readOnly = readOnly,
+                            truncated = page.hasMore,
                         ),
                     )
                 }

@@ -231,6 +231,18 @@ fun BrowseScreen(
             if (s.crumbs.size > 1) {
                 Breadcrumbs(s.crumbs) { c -> vm.open(c.path) }
             }
+            if (s.truncated) {
+                // The engine caps one listing call; rather than pretend the
+                // folder ends there, say so. Sorting is applied per call, so a
+                // naive page-two would break the order the user is reading.
+                Text(
+                    text = "Showing the first ${s.entries.size} items — this folder has more. " +
+                        "Search here, or use the system picker for the whole set.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
             Box(Modifier.fillMaxSize()) {
                 when {
                     s.loading -> LoadingState()
