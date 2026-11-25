@@ -35,9 +35,13 @@ use std::sync::{Arc, Mutex, OnceLock};
 /// Monotonic handle table for cancel tokens handed to Kotlin. Kotlin only ever
 /// passes the `long` back, so no JVM object references are held natively.
 static NEXT_HANDLE: AtomicU64 = AtomicU64::new(1);
-static TOKENS: OnceLock<Mutex<Vec<(u64, Arc<CancelToken>)>>> = OnceLock::new();
+/// One entry per live cancel handle: the numeric id handed to Kotlin and the
+/// token the worker thread polls.
+type TokenTable = Mutex<Vec<(u64, Arc<CancelToken>)>>;
 
-fn token_table() -> &'static Mutex<Vec<(u64, Arc<CancelToken>)>> {
+static TOKENS: OnceLock<TokenTable> = OnceLock::new();
+
+fn token_table() -> &'static TokenTable {
     TOKENS.get_or_init(|| Mutex::new(Vec::new()))
 }
 

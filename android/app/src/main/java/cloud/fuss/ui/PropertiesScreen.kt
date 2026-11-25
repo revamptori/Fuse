@@ -51,7 +51,7 @@ fun PropertiesScreen(
     val repo = remember { FsRepository() }
     val ctx = LocalContext.current
     var props by remember(path) { mutableStateOf<FileProperties?>(null) }
-    var size by remember(path) { mutableStateOf<DirSizeResult?>(null) }
+    var dirSize by remember(path) { mutableStateOf<DirSizeResult?>(null) }
     var sizeLoading by remember(path) { mutableStateOf(false) }
     var error by remember(path) { mutableStateOf<String?>(null) }
     var favorite by remember(path) { mutableStateOf(RecentStore(ctx).isFavorite(path)) }
@@ -66,7 +66,7 @@ fun PropertiesScreen(
 
     LaunchedEffect(sizeLoading) {
         if (sizeLoading) {
-            size = runCatching { repo.dirSize(path) }.getOrNull()
+            dirSize = runCatching { repo.dirSize(path) }.getOrNull()
             sizeLoading = false
         }
     }
@@ -111,7 +111,8 @@ fun PropertiesScreen(
                             "Size",
                             when {
                                 sizeLoading -> "calculating…"
-                                size != null -> "${Format.size(size!!.bytes)} (${size!!.files} files, ${size!!.dirs} folders)"
+                                dirSize != null -> Format.size(dirSize!!.bytes) + " (" + dirSize!!.files +
+                                    " files, " + dirSize!!.dirs + " folders)"
                                 else -> "not calculated"
                             },
                         )
@@ -129,7 +130,7 @@ fun PropertiesScreen(
                         TextButton(
                             onClick = { if (!sizeLoading) sizeLoading = true },
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                        ) { Text(if (size == null) "Calculate folder size" else "Recalculate size") }
+                        ) { Text(if (dirSize == null) "Calculate folder size" else "Recalculate size") }
                     }
                     TextButton(
                         onClick = {
