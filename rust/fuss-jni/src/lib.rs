@@ -51,7 +51,9 @@ fn token_table() -> &'static TokenTable {
 
 fn insert_token(token: Arc<CancelToken>) -> u64 {
     let handle = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed);
-    let mut guard: Tokens = token_table().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut guard: Tokens = token_table()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     // Opportunistically prune finished tokens to keep the table tiny.
     if guard.len() > 64 {
         guard.retain(|(_, t)| !t.is_cancelled());
@@ -61,7 +63,9 @@ fn insert_token(token: Arc<CancelToken>) -> u64 {
 }
 
 fn token_for(handle: u64) -> Arc<CancelToken> {
-    let guard: Tokens = token_table().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let guard: Tokens = token_table()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     guard
         .iter()
         .find(|(h, _)| *h == handle)
@@ -244,7 +248,9 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_freeCancelToken(
     _c: JClass,
     handle: jlong,
 ) {
-    let mut guard: Tokens = token_table().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut guard: Tokens = token_table()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     guard.retain(|(h, _)| *h != handle as u64);
 }
 

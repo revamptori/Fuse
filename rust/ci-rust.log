@@ -3142,3 +3142,298 @@ running 0 tests
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
 ===== result: FAIL =====
+===== cargo fmt --all -- --check =====
+Diff in /home/runner/work/Fuse/Fuse/rust/fuss-jni/src/lib.rs:51:
+ 
+ fn insert_token(token: Arc<CancelToken>) -> u64 {
+     let handle = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed);
+-    let mut guard: Tokens = token_table().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
++    let mut guard: Tokens = token_table()
++        .lock()
++        .unwrap_or_else(std::sync::PoisonError::into_inner);
+     // Opportunistically prune finished tokens to keep the table tiny.
+     if guard.len() > 64 {
+         guard.retain(|(_, t)| !t.is_cancelled());
+Diff in /home/runner/work/Fuse/Fuse/rust/fuss-jni/src/lib.rs:61:
+ }
+ 
+ fn token_for(handle: u64) -> Arc<CancelToken> {
+-    let guard: Tokens = token_table().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
++    let guard: Tokens = token_table()
++        .lock()
++        .unwrap_or_else(std::sync::PoisonError::into_inner);
+     guard
+         .iter()
+         .find(|(h, _)| *h == handle)
+Diff in /home/runner/work/Fuse/Fuse/rust/fuss-jni/src/lib.rs:244:
+     _c: JClass,
+     handle: jlong,
+ ) {
+-    let mut guard: Tokens = token_table().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
++    let mut guard: Tokens = token_table()
++        .lock()
++        .unwrap_or_else(std::sync::PoisonError::into_inner);
+     guard.retain(|(h, _)| *h != handle as u64);
+ }
+ 
+!! FAILED: cargo fmt --all -- --check
+===== cargo clippy --all-targets -- -D warnings =====
+[1m[92m    Updating[0m crates.io index
+[1m[92m     Locking[0m 12 packages to highest compatible versions
+[1m[92m      Adding[0m winapi-util v0.1.11
+[1m[92m      Adding[0m windows-link v0.2.1
+[1m[92m      Adding[0m windows-sys v0.45.0
+[1m[92m      Adding[0m windows-sys v0.61.2
+[1m[92m      Adding[0m windows-targets v0.42.2
+[1m[92m      Adding[0m windows_aarch64_gnullvm v0.42.2
+[1m[92m      Adding[0m windows_aarch64_msvc v0.42.2
+[1m[92m      Adding[0m windows_i686_gnu v0.42.2
+[1m[92m      Adding[0m windows_i686_msvc v0.42.2
+[1m[92m      Adding[0m windows_x86_64_gnu v0.42.2
+[1m[92m      Adding[0m windows_x86_64_gnullvm v0.42.2
+[1m[92m      Adding[0m windows_x86_64_msvc v0.42.2
+[1m[92m Downloading[0m crates ...
+[1m[92m  Downloaded[0m adler2 v2.0.1
+[1m[92m  Downloaded[0m cesu8 v1.1.0
+[1m[92m  Downloaded[0m combine v4.6.7
+[1m[92m  Downloaded[0m same-file v1.0.6
+[1m[92m  Downloaded[0m cfg-if v1.0.0
+[1m[92m  Downloaded[0m thiserror-impl v1.0.69
+[1m[92m  Downloaded[0m log v0.4.22
+[1m[92m  Downloaded[0m thiserror v1.0.69
+[1m[92m  Downloaded[0m jni-sys v0.3.0
+[1m[92m  Downloaded[0m walkdir v2.5.0
+[1m[92m  Downloaded[0m bytes v1.7.2
+[1m[92m  Downloaded[0m miniz_oxide v0.8.9
+[1m[92m  Downloaded[0m quote v1.0.37
+[1m[92m  Downloaded[0m proc-macro2 v1.0.89
+[1m[92m  Downloaded[0m unicode-ident v1.0.13
+[1m[92m  Downloaded[0m memchr v2.7.4
+[1m[92m  Downloaded[0m jni v0.21.1
+[1m[92m  Downloaded[0m syn v2.0.87
+[1m[92m   Compiling[0m proc-macro2 v1.0.89
+[1m[92m   Compiling[0m unicode-ident v1.0.13
+[1m[92m    Checking[0m adler2 v2.0.1
+[1m[92m   Compiling[0m thiserror v1.0.69
+[1m[92m    Checking[0m miniz_oxide v0.8.9
+[1m[92m    Checking[0m bytes v1.7.2
+[1m[92m    Checking[0m fuss-core v1.0.0 (/home/runner/work/Fuse/Fuse/rust/fuss-core)
+[1m[92m    Checking[0m memchr v2.7.4
+[1m[92m    Checking[0m jni-sys v0.3.0
+[1m[92m    Checking[0m log v0.4.22
+[1m[92m    Checking[0m cesu8 v1.1.0
+[1m[92m    Checking[0m cfg-if v1.0.0
+[1m[92m    Checking[0m combine v4.6.7
+[1m[92m   Compiling[0m quote v1.0.37
+[1m[92m   Compiling[0m syn v2.0.87
+[1m[92m   Compiling[0m thiserror-impl v1.0.69
+[1m[92m    Checking[0m jni v0.21.1
+[1m[92m    Checking[0m fuss-jni v1.0.0 (/home/runner/work/Fuse/Fuse/rust/fuss-jni)
+[1m[91merror[0m[1m: redundant closure[0m
+   [1m[94m--> [0mfuss-jni/src/lib.rs:205:37
+    [1m[94m|[0m
+[1m[94m205[0m [1m[94m|[0m     let report = match catch_unwind(|| fuss_core::self_test()) {
+    [1m[94m|[0m                                     [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mhelp: replace the closure with the function itself: `fuss_core::self_test`[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mhelp[0m: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#redundant_closure
+    [1m[94m= [0m[1mnote[0m: `-D clippy::redundant-closure` implied by `-D warnings`
+    [1m[94m= [0m[1mhelp[0m: to override `-D warnings` add `#[allow(clippy::redundant_closure)]`
+
+[1m[91merror[0m: could not compile `fuss-jni` (lib test) due to 1 previous error
+[1m[33mwarning[0m: build failed, waiting for other jobs to finish...
+[1m[91merror[0m: could not compile `fuss-jni` (lib) due to 1 previous error
+!! FAILED: cargo clippy --all-targets -- -D warnings
+===== cargo test --all =====
+[1m[92m   Compiling[0m adler2 v2.0.1
+[1m[92m   Compiling[0m bytes v1.7.2
+[1m[92m   Compiling[0m memchr v2.7.4
+[1m[92m   Compiling[0m thiserror v1.0.69
+[1m[92m   Compiling[0m log v0.4.22
+[1m[92m   Compiling[0m miniz_oxide v0.8.9
+[1m[92m   Compiling[0m cesu8 v1.1.0
+[1m[92m   Compiling[0m cfg-if v1.0.0
+[1m[92m   Compiling[0m jni-sys v0.3.0
+[1m[92m   Compiling[0m combine v4.6.7
+[1m[92m   Compiling[0m fuss-core v1.0.0 (/home/runner/work/Fuse/Fuse/rust/fuss-core)
+[1m[92m   Compiling[0m jni v0.21.1
+[1m[92m   Compiling[0m fuss-jni v1.0.0 (/home/runner/work/Fuse/Fuse/rust/fuss-jni)
+[1m[92m    Finished[0m `test` profile [unoptimized + debuginfo] target(s) in 5.59s
+[1m[92m     Running[0m unittests src/lib.rs (target/debug/build/fuss-core/df9949dc7075c484/out/fuss_core-df9949dc7075c484)
+
+running 51 tests
+test analyze::tests::empties_and_types ... ok
+test archive::crc32::tests::incremental_matches_oneshot ... ok
+test archive::crc32::tests::known_vectors ... ok
+test analyze::tests::duplicates ... ok
+test archive::inflate_stream::tests::gzip_multimember ... ok
+test analyze::tests::sizes_and_largest ... ok
+test archive::inflate_stream::tests::truncated_streams_error ... ok
+test archive::tar::tests::long_names_via_pax ... ok
+test archive::inflate_stream::tests::gzip_roundtrip_matches_spec_crc ... ok
+test archive::tar::tests::path_traversal_blocked ... ok
+test archive::tests::detect_formats ... ok
+test archive::tar::tests::tar_roundtrip ... ok
+test archive::tests::gzip_single_file_roundtrip ... ok
+test archive::tar::tests::gzip_roundtrip_and_tgz_listing ... ok
+test archive::tests::tar_create_and_extract ... ok
+test archive::tests::tar_gz_create_and_extract ... ok
+test archive::zip::tests::dos_time_roundtrip ... ok
+test archive::zip::tests::detects_corruption_via_crc_stored ... ok
+test archive::zip::tests::rejects_non_zip ... ok
+test cancel::tests::cancel_flow ... ok
+test codec::tests::malformed_is_none ... ok
+test archive::tests::zip_create_and_extract ... ok
+test codec::tests::roundtrip ... ok
+test entry::tests::dirs_first_and_descending ... ok
+test entry::tests::natural_case_insensitive_but_stable ... ok
+test entry::tests::natural_order ... ok
+test ext::tests::extensions ... ok
+test ext::tests::classification ... ok
+test fsops::tests::cancellation_leaves_no_temp_file ... ok
+test fsops::tests::batch_copy_collects_errors_and_renames_duplicates ... ok
+test fsops::tests::create_copy_move_delete ... ok
+test fsops::tests::overwrite_replaces_content ... ok
+test fsops::tests::refuses_copy_into_self ... ok
+test fsops::tests::unique_name_works ... ok
+test listing::tests::lists_and_hides_dotfiles ... ok
+test listing::tests::not_a_directory ... ok
+test fsops::tests::recursive_copy_and_delete ... ok
+test path::tests::archive_paths_are_contained ... ok
+test path::tests::joins_checked ... ok
+test path::tests::rejects_parent_paths ... ok
+test path::tests::validates_names ... ok
+test prefs::tests::favorites_are_unique_and_capped ... ok
+test prefs::tests::missing_file_is_empty ... ok
+test prefs::tests::recents_move_to_front ... ok
+test listing::tests::paging ... ok
+test search::tests::globs ... ok
+test prefs::tests::roundtrip_with_special_chars ... ok
+test search::tests::search_tree ... ok
+test tests::self_test_all_pass ... ok
+test archive::zip::tests::roundtrip_list_and_extract ... ok
+test archive::inflate_stream::tests::deflate_roundtrip_streaming ... ok
+
+test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+[1m[92m     Running[0m unittests src/bin/fuss-bench.rs (target/debug/build/fuss-core/d506260541bdf84c/out/fuss_bench-d506260541bdf84c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[1m[92m     Running[0m unittests src/lib.rs (target/debug/build/fuss-jni/055c3d217503b24f/out/fuss_core-055c3d217503b24f)
+
+running 4 tests
+test tests::cancel_handles_roundtrip ... ok
+test tests::error_encoding_is_decodable ... ok
+test tests::ok_encoding_roundtrips_payload ... ok
+test tests::progress_visible_through_handle ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[1m[92m   Doc-tests[0m fuss_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+===== cargo test --all --release =====
+[1m[92m   Compiling[0m proc-macro2 v1.0.89
+[1m[92m   Compiling[0m unicode-ident v1.0.13
+[1m[92m   Compiling[0m adler2 v2.0.1
+[1m[92m   Compiling[0m thiserror v1.0.69
+[1m[92m   Compiling[0m miniz_oxide v0.8.9
+[1m[92m   Compiling[0m memchr v2.7.4
+[1m[92m   Compiling[0m bytes v1.7.2
+[1m[92m   Compiling[0m quote v1.0.37
+[1m[92m   Compiling[0m fuss-core v1.0.0 (/home/runner/work/Fuse/Fuse/rust/fuss-core)
+[1m[92m   Compiling[0m syn v2.0.87
+[1m[92m   Compiling[0m combine v4.6.7
+[1m[92m   Compiling[0m cesu8 v1.1.0
+[1m[92m   Compiling[0m cfg-if v1.0.0
+[1m[92m   Compiling[0m log v0.4.22
+[1m[92m   Compiling[0m jni-sys v0.3.0
+[1m[92m   Compiling[0m thiserror-impl v1.0.69
+[1m[92m   Compiling[0m jni v0.21.1
+[1m[92m   Compiling[0m fuss-jni v1.0.0 (/home/runner/work/Fuse/Fuse/rust/fuss-jni)
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 17.06s
+[1m[92m     Running[0m unittests src/lib.rs (target/release/build/fuss-core/4f635b32d0bf0027/out/fuss_core-4f635b32d0bf0027)
+
+running 51 tests
+test archive::crc32::tests::incremental_matches_oneshot ... ok
+test archive::crc32::tests::known_vectors ... ok
+test analyze::tests::empties_and_types ... ok
+test analyze::tests::duplicates ... ok
+test archive::inflate_stream::tests::gzip_multimember ... ok
+test analyze::tests::sizes_and_largest ... ok
+test archive::inflate_stream::tests::gzip_roundtrip_matches_spec_crc ... ok
+test archive::inflate_stream::tests::truncated_streams_error ... ok
+test archive::tar::tests::long_names_via_pax ... ok
+test archive::tar::tests::path_traversal_blocked ... ok
+test archive::tests::detect_formats ... ok
+test archive::tar::tests::tar_roundtrip ... ok
+test archive::tar::tests::gzip_roundtrip_and_tgz_listing ... ok
+test archive::tests::gzip_single_file_roundtrip ... ok
+test archive::tests::tar_create_and_extract ... ok
+test archive::tests::tar_gz_create_and_extract ... ok
+test archive::zip::tests::detects_corruption_via_crc_stored ... ok
+test archive::zip::tests::dos_time_roundtrip ... ok
+test archive::zip::tests::rejects_non_zip ... ok
+test cancel::tests::cancel_flow ... ok
+test codec::tests::malformed_is_none ... ok
+test codec::tests::roundtrip ... ok
+test entry::tests::dirs_first_and_descending ... ok
+test entry::tests::natural_case_insensitive_but_stable ... ok
+test entry::tests::natural_order ... ok
+test ext::tests::classification ... ok
+test ext::tests::extensions ... ok
+test archive::inflate_stream::tests::deflate_roundtrip_streaming ... ok
+test archive::tests::zip_create_and_extract ... ok
+test fsops::tests::cancellation_leaves_no_temp_file ... ok
+test fsops::tests::batch_copy_collects_errors_and_renames_duplicates ... ok
+test fsops::tests::overwrite_replaces_content ... ok
+test fsops::tests::refuses_copy_into_self ... ok
+test archive::zip::tests::roundtrip_list_and_extract ... ok
+test fsops::tests::create_copy_move_delete ... ok
+test fsops::tests::unique_name_works ... ok
+test listing::tests::lists_and_hides_dotfiles ... ok
+test path::tests::archive_paths_are_contained ... ok
+test listing::tests::not_a_directory ... ok
+test path::tests::joins_checked ... ok
+test path::tests::rejects_parent_paths ... ok
+test path::tests::validates_names ... ok
+test prefs::tests::missing_file_is_empty ... ok
+test prefs::tests::favorites_are_unique_and_capped ... ok
+test prefs::tests::recents_move_to_front ... ok
+test search::tests::globs ... ok
+test prefs::tests::roundtrip_with_special_chars ... ok
+test listing::tests::paging ... ok
+test fsops::tests::recursive_copy_and_delete ... ok
+test search::tests::search_tree ... ok
+test tests::self_test_all_pass ... ok
+
+test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+[1m[92m     Running[0m unittests src/bin/fuss-bench.rs (target/release/build/fuss-core/4c4bfe3e47c84c74/out/fuss_bench-4c4bfe3e47c84c74)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[1m[92m     Running[0m unittests src/lib.rs (target/release/build/fuss-jni/d05e2ed5ef447179/out/fuss_core-d05e2ed5ef447179)
+
+running 4 tests
+test tests::cancel_handles_roundtrip ... ok
+test tests::error_encoding_is_decodable ... ok
+test tests::ok_encoding_roundtrips_payload ... ok
+test tests::progress_visible_through_handle ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[1m[92m   Doc-tests[0m fuss_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+===== result: FAIL =====
