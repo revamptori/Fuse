@@ -101,7 +101,7 @@ fn main() {
     // ZIP create + list of the 500 small files.
     let zip_path = root.join("bench.zip");
     bench("zip create 500 x 4 KiB", 3, || {
-        archive::create_zip(&[small_src.clone()], &zip_path, &cancel).unwrap();
+        archive::create_zip(std::slice::from_ref(&small_src), &zip_path, &cancel).unwrap();
     });
     bench("zip list 500 entries", 10, || {
         let l = archive::list(&zip_path, &cancel).unwrap();

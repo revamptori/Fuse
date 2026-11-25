@@ -6,7 +6,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # `write` is needed so scripts/ci-autofix.sh can push cargo-fmt fixups back
+  # to the same branch; nothing else in this workflow writes to the repo.
+  contents: write
   pull-requests: write
   issues: write
 
