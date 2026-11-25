@@ -14,7 +14,8 @@ JNI surface, with a Jetpack Compose (Material 3) interface.
 3. Verify the download against `SHA256SUMS.txt` if you like:
    `sha256sum -c SHA256SUMS.txt`
 
-`fuss-debug-*.apk` builds are included for testing; they are slower and larger.
+Each release APK is R8-minified and resource-shrunk; the arm64 build is under a
+megabyte. See the assets' `SHA256SUMS.txt` for checksums.
 
 ### Notes
 

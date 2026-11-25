@@ -48,13 +48,19 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (hasKeystore) {
-                signingConfig = signingConfigs.create("release") {
+            // A real distribution key wins. Without one the release variant is
+            // signed with the debug key so the APK is still installable — the
+            // artifact name and the release notes say it is test-signed, and
+            // nobody should mistake it for an official build.
+            signingConfig = if (hasKeystore) {
+                signingConfigs.create("release") {
                     storeFile = File(keystoreProps.getProperty("FUSS_STORE_FILE"))
                     storePassword = keystoreProps.getProperty("FUSS_STORE_PASSWORD")
                     keyAlias = keystoreProps.getProperty("FUSS_KEY_ALIAS")
                     keyPassword = keystoreProps.getProperty("FUSS_KEY_PASSWORD")
                 }
+            } else {
+                signingConfigs.getByName("debug")
             }
         }
     }

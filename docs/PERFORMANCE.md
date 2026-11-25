@@ -9,7 +9,7 @@ measured is labelled as such.
 
 | Metric | Goal | Current status |
 | --- | --- | --- |
-| Release APK size (per ABI) | < 5 MB | not yet measured on device; CI reports each APK's size |
+| Release APK size (per ABI) | < 5 MB | **met**: arm64 release APK is ≈ 0.65 MB (CI-built) |
 | Idle RAM | < 20 MB | not yet measured |
 | Cold start to first frame | < 300 ms | not yet measured |
 | Listing a 10 000-file directory | < 100 ms | engine-only measurement in `docs/BENCHMARKS.md` |

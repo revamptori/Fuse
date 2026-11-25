@@ -49,8 +49,9 @@ next to a release build.
 
 ## Signing a release
 
-Without configuration, release APKs are left unsigned and CI ships debug-signed
-APKs for sideloading. To sign properly, provide either environment variables or
+Without configuration, release APKs are signed with the debug key so they can
+still be installed for testing; the release workflow names them
+`fuss-release-*.apk` and the notes call them test-signed. To sign properly, provide either environment variables or
 `~/.fuss-keystore.properties`:
 
 ```properties
