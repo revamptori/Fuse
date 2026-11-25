@@ -30,11 +30,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import cloud.fuss.app.CrashLog
 import cloud.fuss.app.RecentStore
-import cloud.fuss.core.FsRepository
 import cloud.fuss.core.FussNative
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 
 /**
  * Settings and diagnostics. The self-test button runs every engine path on a
@@ -49,8 +47,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var followSystem by remember { mutableStateOf(!prefs.contains("dark")) }
     var dynamic by remember { mutableStateOf(prefs.getBoolean("dynamic", false)) }
     var report by remember { mutableStateOf<String?>(null) }
-    var version by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
+    var crash by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -115,6 +112,17 @@ fun SettingsScreen(onBack: () -> Unit) {
             Column(Modifier.padding(16.dp)) {
                 Text("Clear history", style = MaterialTheme.typography.titleSmall)
                 TextButton(onClick = { RecentStore(ctx).clearRecent() }) { Text("Clear recent folders") }
+            }
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            Column(Modifier.padding(16.dp)) {
+                Text("Last crash", style = MaterialTheme.typography.titleSmall)
+                if (crash == null) {
+                    TextButton(onClick = { crash = CrashLog.last(ctx) ?: "No crash log found" }) {
+                        Text("Show last crash log")
+                    }
+                } else {
+                    Text(crash!!, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
             }
             Spacer(Modifier.height(24.dp))
         }

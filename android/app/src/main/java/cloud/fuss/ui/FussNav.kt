@@ -1,5 +1,7 @@
 package cloud.fuss.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -9,25 +11,29 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cloud.fuss.app.BrowseViewModel
 import cloud.fuss.app.OpenWith
+import cloud.fuss.app.SafStore
 import cloud.fuss.core.FileEntry
 
 /**
  * Screen stack. A hand-written back stack (not Navigation-Compose) keeps the
- * dependency set small and the behaviour obvious: one enum plus one path.
+ * dependency set small and the behaviour obvious: a sealed `Screen` plus paths.
+ * The Browse screen is the only screen backed by the shared [BrowseViewModel];
+ * everything else is transient and stateless on recomposition.
  */
 private sealed interface Screen {
     data object Home : Screen
     data class Browse(val path: String) : Screen
     data class Properties(val path: String) : Screen
     data class Archive(val path: String) : Screen
+    data class Compress(val dir: String, val selection: List<String>) : Screen
     data class Storage(val path: String) : Screen
     data class Search(val root: String) : Screen
+    data class Saf(val uri: String, val label: String) : Screen
     data object Settings : Screen
 }
 
@@ -42,17 +48,12 @@ fun FussNav(darkOverride: Boolean?, dynamic: Boolean) {
     fun pop() { if (stack.size > 1) stack = stack.dropLast(1) }
 
     val safLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        if (uri != null) {
-            vm.attachSaf(uri)
-        }
+        if (uri != null) vm.attachSaf(uri)
     }
 
     FussTheme(dark = darkOverride, dynamicColor = dynamic) {
         BackHandler(enabled = current !is Screen.Home || ui.state.selectMode) {
-            when {
-                ui.state.selectMode -> vm.clearSelection()
-                else -> pop()
-            }
+            if (ui.state.selectMode) vm.clearSelection() else pop()
         }
 
         when (val s = current) {
@@ -61,11 +62,9 @@ fun FussNav(darkOverride: Boolean?, dynamic: Boolean) {
                     vm.open(path)
                     push(Screen.Browse(path))
                 },
+                onOpenSaf = { root -> push(Screen.Saf(root.uri, root.label)) },
                 onAddSaf = { safLauncher.launch(null) },
-                onSearch = {
-                    vm.open(if (ui.state.path.isEmpty()) "/storage/emulated/0" else ui.state.path, record = false)
-                    push(Screen.Search(ui.state.path.ifEmpty { "/storage/emulated/0" }))
-                },
+                onSettings = { push(Screen.Settings) },
             )
             is Screen.Browse -> BrowseScreen(
                 vm = vm,
@@ -74,36 +73,48 @@ fun FussNav(darkOverride: Boolean?, dynamic: Boolean) {
                     vm.open(path)
                     push(Screen.Browse(path))
                 },
-                onOpenFile = { path, entry ->
-                    val archiveFile = entry.kind == FileEntry.KIND_ARCHIVE || vm.isArchiveSync(path)
+                onOpenFile = { path, entry: FileEntry ->
                     when {
-                        archiveFile -> push(Screen.Archive(path))
-                        !OpenWith.open(ctx, path, entry) -> {
-                            vm.open(ui.state.path, record = false)
-                            // Fall through: keep the user in place; the snackbar
-                            // explains that no viewer exists.
+                        entry.kind == FileEntry.KIND_ARCHIVE || vm.isArchiveSync(path) -> push(Screen.Archive(path))
+                        !OpenWith.open(ctx, path, entry) ->
                             android.widget.Toast.makeText(ctx, "No app can open this file", android.widget.Toast.LENGTH_SHORT).show()
-                        }
                     }
                 },
                 onProperties = { path -> push(Screen.Properties(path)) },
                 onOpenArchive = { path -> push(Screen.Archive(path)) },
                 onShare = { path ->
                     if (!OpenWith.share(ctx, listOf(path))) {
-                        android.widget.Toast.makeText(ctx, "Nothing to share with", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(ctx, "Nothing can share this", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 },
+                onNewArchive = {
+                    val st = ui.state
+                    val sel = st.selection.map { vm.pathOf(it) }
+                    vm.clearSelection()
+                    push(Screen.Compress(st.path, sel))
+                },
+                onAnalyse = { push(Screen.Storage(ui.state.path)) },
+                onHome = {
+                    while (stack.size > 1) stack = stack.dropLast(1)
+                },
             )
-            is Screen.Properties -> PropertiesScreen(
-                path = s.path,
-                onBack = { pop() },
-                onOpenFolder = { p -> vm.open(p); push(Screen.Browse(p)) },
-                onAddFavorite = { },
-            )
+            is Screen.Properties -> PropertiesScreen(path = s.path, onBack = { pop() })
             is Screen.Archive -> ArchiveScreen(
                 archivePath = s.path,
                 onBack = { pop() },
-                onExtracted = { dest -> vm.open(dest) },
+                onExtracted = { dest ->
+                    vm.open(dest, record = false)
+                },
+            )
+            is Screen.Compress -> CompressScreen(
+                directory = s.dir,
+                selection = s.selection,
+                onBack = { pop() },
+                onDone = { created ->
+                    val clip = ctx.getSystemService(ClipboardManager::class.java)
+                    clip?.setPrimaryClip(ClipData.newPlainText("fuss", created))
+                    vm.refresh()
+                },
             )
             is Screen.Storage -> StorageScreen(
                 root = s.path,
@@ -120,6 +131,12 @@ fun FussNav(darkOverride: Boolean?, dynamic: Boolean) {
                     vm.open(path)
                     push(Screen.Browse(path))
                 },
+            )
+            is Screen.Saf -> SafScreen(
+                treeUri = s.uri,
+                treeLabel = s.label,
+                onBack = { pop() },
+                onCopied = { /* import lands in app storage; refresh home next visit */ },
             )
             is Screen.Settings -> SettingsScreen(onBack = { pop() })
         }

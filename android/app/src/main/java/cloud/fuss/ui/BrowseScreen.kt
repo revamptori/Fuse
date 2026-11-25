@@ -35,6 +35,9 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DoneAll
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.FolderZip
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Refresh
@@ -94,6 +97,9 @@ fun BrowseScreen(
     onProperties: (String) -> Unit,
     onOpenArchive: (String) -> Unit,
     onShare: (String) -> Unit,
+    onNewArchive: () -> Unit = {},
+    onAnalyse: () -> Unit = {},
+    onHome: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -187,6 +193,21 @@ fun BrowseScreen(
                             DropdownMenuItem(
                                 text = { Text("New file") },
                                 onClick = { menuOpen = false; vm.showDialogCreateFile() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Compress to ZIP") },
+                                leadingIcon = { Icon(Icons.Outlined.FolderZip, contentDescription = null) },
+                                onClick = { menuOpen = false; onNewArchive() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Storage analysis") },
+                                leadingIcon = { Icon(Icons.Outlined.PieChart, contentDescription = null) },
+                                onClick = { menuOpen = false; onAnalyse() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Home") },
+                                leadingIcon = { Icon(Icons.Outlined.Home, contentDescription = null) },
+                                onClick = { menuOpen = false; onHome() },
                             )
                             HorizontalDivider()
                             DropdownMenuItem(

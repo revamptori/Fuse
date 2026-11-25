@@ -13,6 +13,7 @@ class FormatTest {
         assertEquals("1.50 MB", Format.size(1024L * 1024 * 3 / 2))
         assertEquals("1.00 GB", Format.size(1024L * 1024 * 1024))
         assertEquals("1.00 TB", Format.size(1024L * 1024 * 1024 * 1024))
+        assertEquals("-1 B", Format.size(-1))
     }
 
     @Test

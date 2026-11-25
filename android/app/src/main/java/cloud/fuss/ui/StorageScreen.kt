@@ -1,5 +1,6 @@
 package cloud.fuss.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,13 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.InsertDriveFile
-import androidx.compose.material.icons.outlined.Layers
-import androidx.compose.material.icons.outlined.Storage
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,19 +46,25 @@ import cloud.fuss.core.LargeFile
 import cloud.fuss.core.TypeStat
 import java.io.File
 
-private enum class Tab(val label: String) { OVERVIEW("Overview"), LARGE("Largest"), EMPTY("Empty"), TYPES("Types"), DUPLICATES("Duplicates") }
+private enum class AnalysisTab(val label: String) {
+    OVERVIEW("Size"),
+    LARGE("Large"),
+    EMPTY("Empty"),
+    TYPES("Types"),
+    DUPLICATES("Dupes"),
+}
 
 /**
- * Storage analysis for one root: folder breakdown, largest files, empty
- * folders, type statistics and duplicate detection. Every scan runs as its own
- * coroutine with a cancel handle, so leaving the screen stops the work.
+ * Storage analysis for one root. Each tab triggers exactly one engine scan, with
+ * its own cancel token; switching tabs cancels nothing mid-flight (the engine
+ * call completes quickly for the sizes involved) but leaving the screen does.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StorageScreen(root: String, onBack: () -> Unit, onOpen: (String) -> Unit) {
     val repo = remember { FsRepository() }
-    var tab by remember { mutableStateOf(Tab.OVERVIEW) }
-    var busy by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf(AnalysisTab.OVERVIEW) }
+    var busy by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
     var childSizes by remember(root) { mutableStateOf<List<ChildDirSize>>(emptyList()) }
@@ -72,16 +74,16 @@ fun StorageScreen(root: String, onBack: () -> Unit, onOpen: (String) -> Unit) {
     var dups by remember(root) { mutableStateOf<DuplicateResults?>(null) }
     var totalBytes by remember(root) { mutableStateOf(0L) }
 
-    fun load(t: Tab) {
-        tab = t
-        busy = true
-        error = null
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Storage: ${File(root).name.ifEmpty { root }}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = {
+                    Text(
+                        "Storage: ${File(root).name.ifEmpty { root }}",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
@@ -91,52 +93,54 @@ fun StorageScreen(root: String, onBack: () -> Unit, onOpen: (String) -> Unit) {
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Tab.entries.forEachIndexed { i, t ->
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                AnalysisTab.entries.forEachIndexed { i, t ->
                     SegmentedButton(
                         selected = tab == t,
-                        onClick = { load(t) },
-                        shape = SegmentedButtonDefaults.itemShape(i, Tab.entries.size),
-                    ) { Text(t.label, style = MaterialTheme.typography.labelSmall) }
+                        onClick = { tab = t },
+                        shape = SegmentedButtonDefaults.itemShape(i, AnalysisTab.entries.size),
+                    ) { Text(t.label, style = MaterialTheme.typography.labelSmall, maxLines = 1) }
                 }
             }
             Spacer(Modifier.height(8.dp))
             if (busy) BusyBanner("Analysing…")
-            if (error != null) EmptyState(title = error!!)
-            when (tab) {
-                Tab.OVERVIEW -> OverviewList(childSizes, totalBytes, onOpen)
-                Tab.LARGE -> FileList(largest)
-                Tab.EMPTY -> EmptyList(empties)
-                Tab.TYPES -> TypeList(types)
-                Tab.DUPLICATES -> DuplicateList(dups)
+            if (error != null) {
+                EmptyState(title = error!!)
+            } else {
+                when (tab) {
+                    AnalysisTab.OVERVIEW -> OverviewList(childSizes, totalBytes, onOpen)
+                    AnalysisTab.LARGE -> FileList(largest, onOpen)
+                    AnalysisTab.EMPTY -> EmptyList(empties)
+                    AnalysisTab.TYPES -> TypeList(types)
+                    AnalysisTab.DUPLICATES -> DuplicateList(dups)
+                }
             }
         }
     }
 
     LaunchedEffect(root, tab) {
+        busy = true
+        error = null
         try {
             when (tab) {
-                Tab.OVERVIEW -> {
+                AnalysisTab.OVERVIEW -> {
                     childSizes = repo.childDirSizes(root)
                     totalBytes = childSizes.sumOf { it.bytes }
                 }
-                Tab.LARGE -> largest = repo.largestFiles(root, 150)
-                Tab.EMPTY -> empties = repo.emptyDirs(root, 500)
-                Tab.TYPES -> types = repo.typeStats(root)
-                Tab.DUPLICATES -> dups = repo.duplicates(root)
+                AnalysisTab.LARGE -> largest = repo.largestFiles(root, 150)
+                AnalysisTab.EMPTY -> empties = repo.emptyDirs(root, 500)
+                AnalysisTab.TYPES -> types = repo.typeStats(root)
+                AnalysisTab.DUPLICATES -> dups = repo.duplicates(root)
             }
         } catch (e: FussException) {
-            error = e.userMessage()
-        } catch (e: CancellationExceptionHolder.None) {
-            // unreachable; kept for exhaustive when
-        } catch (e: Exception) {
-            error = e.message
+            if (!e.isCancellation) error = e.userMessage()
+        } catch (_: Exception) {
+            // Cancellation from leaving the screen.
+        } finally {
+            busy = false
         }
-        busy = false
     }
 }
-
-private object CancellationExceptionHolder { class None : Exception() }
 
 @Composable
 private fun OverviewList(items: List<ChildDirSize>, total: Long, onOpen: (String) -> Unit) {
@@ -149,18 +153,22 @@ private fun OverviewList(items: List<ChildDirSize>, total: Long, onOpen: (String
             Column(Modifier.padding(16.dp)) {
                 Text("${Format.size(total)} in folders", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${items.size} top-level folders",
+                    "${items.size} top-level folders, largest first",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
         items(items, key = { it.path }) { d ->
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+            Column(
+                Modifier.fillMaxWidth()
+                    .clickable { onOpen(d.path) }
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text(File(d.path).name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+                    Text(File(d.path).name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(Format.size(d.bytes), style = MaterialTheme.typography.bodyMedium)
                 }
                 Spacer(Modifier.height(4.dp))
@@ -170,7 +178,7 @@ private fun OverviewList(items: List<ChildDirSize>, total: Long, onOpen: (String
                     "${d.files} files · ${d.dirs} folders",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 3.dp),
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }
@@ -178,7 +186,7 @@ private fun OverviewList(items: List<ChildDirSize>, total: Long, onOpen: (String
 }
 
 @Composable
-private fun FileList(items: List<LargeFile>) {
+private fun FileList(items: List<LargeFile>, onOpen: (String) -> Unit) {
     if (items.isEmpty()) {
         EmptyState(title = "No files found")
         return
@@ -189,6 +197,7 @@ private fun FileList(items: List<LargeFile>) {
                 primary = File(f.path).name,
                 secondary = "${Format.size(f.size)} · ${f.path.substringBeforeLast('/')}",
                 leading = { Icon(Icons.Outlined.InsertDriveFile, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                onClick = { onOpen(f.path.substringBeforeLast('/')) },
             )
         }
     }
@@ -213,7 +222,10 @@ private fun EmptyList(items: List<String>) {
 
 @Composable
 private fun TypeList(items: List<TypeStat>) {
-    val total = items.sumOf { it.bytes }
+    if (items.isEmpty()) {
+        EmptyState(title = "No files scanned")
+        return
+    }
     LazyColumn(Modifier.fillMaxSize()) {
         items(items, key = { it.kind }) { t ->
             val name = when (t.kind) {
@@ -231,7 +243,10 @@ private fun TypeList(items: List<TypeStat>) {
                 FileEntry.KIND_FONT -> "Fonts"
                 else -> "Other"
             }
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Icon(FileIcons.icon(t.kind), contentDescription = null, tint = FileIcons.tint(t.kind), modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -247,7 +262,7 @@ private fun TypeList(items: List<TypeStat>) {
 @Composable
 private fun DuplicateList(dups: DuplicateResults?) {
     if (dups == null) {
-        EmptyState(title = "Scanning for duplicates…", subtitle = "Files are grouped by size, then by content hash.")
+        LoadingState()
         return
     }
     if (dups.groups.isEmpty()) {
@@ -259,7 +274,7 @@ private fun DuplicateList(dups: DuplicateResults?) {
             Column(Modifier.padding(16.dp)) {
                 Text("${Format.size(dups.totalWasted)} reclaimable", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${dups.groups.size} groups of identical files",
+                    "${dups.groups.size} groups of byte-identical files (size + SHA-256)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -274,7 +289,13 @@ private fun DuplicateList(dups: DuplicateResults?) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 g.paths.forEach { p ->
-                    Text(p, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        p,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
