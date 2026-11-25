@@ -307,6 +307,7 @@ fun BrowseScreen(
     }
 }
 
+@Composable
 private fun SortItem(
     label: String,
     key: Int,
@@ -350,6 +351,7 @@ private fun Breadcrumbs(crumbs: List<cloud.fuss.app.Crumb>, onJump: (cloud.fuss.
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SelectionBar(
     count: Int,

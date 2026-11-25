@@ -25,17 +25,21 @@ body_file=$(mktemp)
     grep -E '^(=====|!! FAILED|BUILD |FAILURE)' "$clean" | head -n 40
     echo ''
     echo '--- errors (max 3 per file) ---'
-    awk '
-      /^e: / {
-        line=$0
-        sub(/^e: file:[^ ]*\//, "", line)         # drop the checkout prefix
-        split(line, a, ":")
-        file=a[1]; msg=$0; sub(/^e: file:[^:]*:[0-9]+:[0-9]+ /, "", msg)
-        key=file "|" msg
-        if (count[key]++ < 3) print $0
-      }
-      /^error(\[|:)/ || /What went wrong/ || /^> / { print }
-    ' "$clean" | head -n 160
+    # Kotlin reports `e: file:.../f.kt:LINE:COL Message`. Keep at most 3 distinct
+    # messages per file so important files are not drowned out by cascades.
+    grep -E '^e: |^error|^warning: |What went wrong|^\* Try|^> [A-Za-z]' "$clean" \
+      | awk '
+          /^e: / {
+            line=$0
+            sub(/^e: file:[^ ]*\//, "", line)
+            split(line, a, ":")
+            f=a[1]
+            msg=$0; sub(/^e: file:[^:]*:[0-9]+:[0-9]+ /, "", msg)
+            if (seen[f "|" msg]++ == 0 && cnt[f]++ < 3) print
+            next
+          }
+          { print }
+        ' | head -n 200
     echo ''
     echo '--- last 60 lines ---'
     tail -n 60 "$clean"
