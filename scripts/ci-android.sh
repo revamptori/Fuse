@@ -16,6 +16,9 @@ step() {
   fi
 }
 python3 "$HERE/scripts/check-kotlin-imports.py" >> "$LOG" 2>&1 || { echo "!! FAILED: kotlin pre-flight" >> "$LOG"; fail=1; }
+# The manifest names classes as strings, so a typo there compiles, builds,
+# signs and installs — then dies on launch. Check the names resolve.
+python3 "$HERE/scripts/check-manifest-refs.py" >> "$LOG" 2>&1 || { echo "!! FAILED: manifest references" >> "$LOG"; fail=1; }
 step "rust android cross-compile" bash "$HERE/scripts/build-rust-android.sh"
 step "gradle assembleDebug" bash -c "cd '$HERE/android' && ./gradlew --no-daemon --stacktrace assembleDebug"
 step "gradle assembleRelease" bash -c "cd '$HERE/android' && ./gradlew --no-daemon --stacktrace assembleRelease"

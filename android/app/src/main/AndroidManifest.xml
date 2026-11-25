@@ -19,8 +19,15 @@
 
     <uses-feature android:name="android.hardware.type.pc" android:required="false" />
 
+    <!--
+        Component names are written out in full on purpose. The Gradle namespace
+        is `cloud.fuss`, but the classes live in `cloud.fuss.app`, so the short
+        form (".MainActivity") resolves to `cloud.fuss.MainActivity` — a class
+        that does not exist. The process then dies during startup and the
+        launcher shows nothing but "Fuss keeps stopping".
+    -->
     <application
-        android:name=".FussApp"
+        android:name="cloud.fuss.app.FussApp"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
@@ -33,7 +40,7 @@
         android:enableOnBackInvokedCallback="true">
 
         <activity
-            android:name=".MainActivity"
+            android:name="cloud.fuss.app.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"

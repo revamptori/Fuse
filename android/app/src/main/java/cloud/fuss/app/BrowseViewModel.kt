@@ -145,7 +145,10 @@ class BrowseViewModel(app: Application) : AndroidViewModel(app) {
                 if (record) {
                     prefs.edit().putString("last_path", path).apply()
                 }
-                RecentStore(getApplication()).add(path)
+                // Recents are a small file, but this runs on the very first
+                // frame of a cold start; keep every disk touch off the main
+                // thread, as the rest of this class does.
+                withContext(Dispatchers.IO) { RecentStore(getApplication()).add(path) }
             } catch (e: FussException) {
                 if (_ui.value.state.path != path) return@launch
                 _ui.update {
