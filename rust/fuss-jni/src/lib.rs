@@ -1694,29 +1694,27 @@ mod registration_tests {
 
     /// (name, descriptor) pairs from the `NativeMethod { ... }` table.
     pub(super) fn parse_table_from_source(src: &str) -> Vec<(String, String)> {
-        // Table lines are generated with this exact shape:
-        //   NativeMethod { name: JNIString::from("x"), sig: JNIString::from("(J)V"), ... },
-        // Splitting on the two markers is enough and keeps the test independent
-        // of formatting details like line length.
+        // rustfmt is free to spread each `NativeMethod { .. }` entry over several
+        // lines, so search the tokens rather than whole lines.
         let name_mark = "name: JNIString::from(";
         let sig_mark = "sig: JNIString::from(";
         let mut out = Vec::new();
-        for line in src.lines() {
-            let line = line.trim();
-            if !line.starts_with("NativeMethod {") {
-                continue;
-            }
-            let Some(name_pos) = line.find(name_mark) else {
-                continue;
-            };
-            let Some(sig_pos) = line.find(sig_mark) else {
-                continue;
-            };
-            let name = quoted(&line[name_pos + name_mark.len()..]);
-            let sig = quoted(&line[sig_pos + sig_mark.len()..]);
+        let mut rest = src;
+        while let Some(pos) = rest.find(name_mark) {
+            rest = &rest[pos + name_mark.len()..];
+            let name = quoted(rest);
+            let Some(sig_pos) = rest.find(sig_mark) else { break };
+            let sig = quoted(&rest[sig_pos + sig_mark.len()..]);
             out.push((name, sig));
         }
         out
+    }
+
+    /// Reads a quoted string starting at the beginning of `s`.
+    fn quoted(s: &str) -> String {
+        let s = s.trim_start();
+        let s = s.strip_prefix('"').expect("quoted string");
+        s[..s.find('"').expect("closing quote")].to_string()
     }
 
     /// Reads a quoted string starting at the beginning of `s`.
