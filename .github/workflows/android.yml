@@ -45,6 +45,20 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0" > /dev/null
       - name: build
         run: ./scripts/ci-android.sh
+      - name: verify signatures
+        run: |
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          test_apk() {
+            apk="$1"
+            [ -f "$apk" ] || { echo "missing $apk"; return 1; }
+            echo "== $apk ($(stat -c%s "$apk") bytes)"
+            "$BT/apksigner" verify --verbose "$apk" | sed -n '1,8p'
+            "$BT/aapt" dump badging "$apk" 2>/dev/null | grep -E "^(package|sdkVersion|targetSdkVersion|native-code)" || true
+          }
+          rc=0
+          test_apk android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk || rc=1
+          for f in android/app/build/outputs/apk/release/*.apk; do test_apk "$f" || rc=1; done
+          exit $rc
       - name: report
         if: always()
         env:
@@ -57,7 +71,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fuss-apks
-          path: android/app/build/outputs/apk/**/*.apk
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/release/*.apk
           if-no-files-found: ignore
       - name: upload logs
         if: always()
