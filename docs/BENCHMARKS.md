@@ -8,28 +8,26 @@ On-device figures must be measured on a real device (see docs/PERFORMANCE.md).
 
 | operation | median | p90 | iterations |
 |---|---|---|---|
-| list 10k files (no stat sort) | 23.67ms | 25.34ms | 20 |
-| list 10k files + natural sort | 31.50ms | 33.14ms | 20 |
-| list 10k files + show hidden | 24.06ms | 26.97ms | 20 |
-| sort 10k entries by size | 33.51ms | 34.05ms | 20 |
-| copy 500 x 4 KiB files | 464.39ms | 1538.48ms | 5 |
-| copy 256 MiB (streamed) | 1502.89ms | 1870.33ms | 3 |
-| dir_size 10k files | 24.33ms | 24.76ms | 10 |
-| search 'file_099' in 10k | 26.28ms | 29.40ms | 10 |
-| zip create 500 x 4 KiB | 52.01ms | 230.01ms | 3 |
-| zip list 500 entries | 0.15ms | 0.17ms | 10 |
-| delete tree (2 000 files) | 283.82ms | 375.93ms | 5 |
-| cancel a 256 MiB copy | 0.03ms | 0.03ms | 5 |
+| list 10k files (no stat sort) | 9.05ms | 9.37ms | 20 |
+| list 10k files + natural sort | 16.45ms | 16.64ms | 20 |
+| list 10k files + show hidden | 9.15ms | 9.22ms | 20 |
+| sort 10k entries by size | 16.52ms | 16.64ms | 20 |
+| copy 500 x 4 KiB files | 475.54ms | 569.61ms | 5 |
+| copy 256 MiB (streamed) | 1508.84ms | 1524.91ms | 3 |
+| dir_size 10k files | 8.89ms | 13.63ms | 10 |
+| search 'file_099' in 10k | 9.92ms | 9.97ms | 10 |
+| zip create 500 x 4 KiB | 28.30ms | 44.23ms | 3 |
+| zip list 500 entries | 0.14ms | 0.18ms | 10 |
+| delete tree (2 000 files) | 553.16ms | 591.12ms | 5 |
+| cancel a 256 MiB copy | 0.01ms | 0.01ms | 5 |
 | encode 200-entry listing chunk | 0.00ms | 0.00ms | 200 |
 
 Process high-water mark during the whole benchmark:
 
 ```
-VmHWM:	    4300 kB
-VmRSS:	    3444 kB
+VmHWM:	    4312 kB
+VmRSS:	    3496 kB
 ```
-
-Engine source digest: `d45fa8b3e2b8`
 
 ## What each line measures
 
@@ -41,3 +39,5 @@ Engine source digest: `d45fa8b3e2b8`
 - **encode 200-entry listing chunk** — the per-chunk JNI payload cost.
 
 Regenerate locally with `scripts/bench-local.sh`.
+
+Engine source digest: `d45fa8b3e2b8`
