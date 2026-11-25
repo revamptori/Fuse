@@ -1,0 +1,16 @@
+[package]
+name = "fuss-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Fuss filesystem engine: browsing, file operations, search, storage analysis, archives."
+
+[dependencies]
+# Pure-Rust DEFLATE/inflate. Tiny (~100 KB compiled), no C code, no build script.
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+
+[[bin]]
+name = "fuss-bench"
+path = "src/bin/fuss-bench.rs"
+bench = false

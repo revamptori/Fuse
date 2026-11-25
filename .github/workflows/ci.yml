@@ -1,0 +1,38 @@
+name: CI
+on:
+  push:
+    branches: ["arena/5a35d0f9-fuse", main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  # `write` is needed so scripts/ci-autofix.sh can push a cargo-fmt fixup back
+  # to the same branch; nothing else in this workflow writes to the repo.
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  rust:
+    name: Rust engine
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: engine check (fmt, clippy, tests, bench)
+        run: ./scripts/ci-rust.sh
+      - name: commit cargo fmt fixup
+        if: always()
+        run: ./scripts/ci-autofix.sh
+      - name: report
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          status=$([ "${{ job.status }}" = success ] && echo pass || echo fail)
+          ./scripts/ci-report.sh rust "Rust engine (fmt/clippy/tests/bench)" ci-rust.log "$status"

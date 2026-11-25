@@ -1,0 +1,15 @@
+[package]
+name = "fuss-jni"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "JNI bridge between the Fuss Android app and the Rust filesystem engine."
+
+[lib]
+name = "fuss_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+fuss-core = { path = "../fuss-core" }
+jni = { version = "0.21", default-features = false }

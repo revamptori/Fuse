@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = ["fuss-core", "fuss-jni"]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "unwind"
+overflow-checks = false
+debug = false
+
+# Android builds are smaller and faster to load with panic=abort, but the JNI
+# layer catches panics per call, so unwind is kept on purpose: a panic in one
+# operation must not take down the whole app process.

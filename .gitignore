@@ -1,0 +1,26 @@
+# Rust
+/rust/target/
+**/*.rs.bk
+
+# Android / Gradle
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/.idea/
+/android/.kotlin/
+*.iml
+*.hprof
+
+# Build outputs
+/dist/
+/bench-results/
+
+# Locally vendored crate sources (see scripts/vendor-deps.sh)
+/rust/vendor/
+/rust/.cargo/config.toml
+
+# CI diagnostics logs (written by scripts/ci-*.sh)
+/ci-rust.log
+/ci-android.log
+/rust/ci-rust.log
