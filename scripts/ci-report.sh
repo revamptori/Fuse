@@ -58,7 +58,9 @@ body_file=$(mktemp)
     ' "$clean" | head -n 260
     echo ''
     echo '--- last 60 lines ---'
-    tail -n 60 "$clean"
+    # Drop the benchmark table from the tail; it is printed in its own section
+    # below, and duplicating thirteen rows of numbers helps nobody.
+    tail -n 60 "$clean" | grep -vE ' +[0-9.]+ms +[0-9.]+ms +[0-9]+$|^operation +median|^-{20,}$'
     echo '```'
     # Benchmarks are reported, never auto-committed: on a shared runner the same
     # binary measures 2.6x apart between runs, so a committed sheet either churns

@@ -67,9 +67,14 @@ cd rust && cargo run --release --bin fuss-bench
 
 Benchmark scenarios: listing a 10 000-entry directory, natural-name sorting,
 copying 256 MiB, cancelling a copy, deleting 2 000 files, and creating a ZIP of
-500 entries. The harness writes `key=value` lines that
-`scripts/bench-to-markdown.py` converts into `docs/BENCHMARKS.md` on every CI run
-of `main`.
+500 entries. The harness prints a table that `scripts/bench-to-markdown.py`
+converts into `docs/BENCHMARKS.md`.
+
+That sheet is refreshed deliberately, with `scripts/bench-local.sh`, not on every
+CI run: the same binary on the same shared runner has measured list-10k from
+9.1 ms to 23.7 ms across runs, so a committed sheet that tracked CI would either
+churn a commit per push or hide real regressions. Each run's numbers are posted in
+the pull-request comment instead.
 
 ## Known trade-offs
 

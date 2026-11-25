@@ -77,7 +77,8 @@ cargo run --release --bin fuss-bench     # engine micro-benchmarks
 ```
 
 Benchmark methodology and the latest numbers: [docs/PERFORMANCE.md](docs/PERFORMANCE.md)
-and the machine-generated [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+and [docs/BENCHMARKS.md](docs/BENCHMARKS.md) (one deliberate measurement; every
+CI run's numbers are posted in the pull-request comment).
 
 ## Status and honesty notes
 
