@@ -24,26 +24,7 @@ body_file=$(mktemp)
     #   * up to 3 errors per source file (deduplicated by message),
     #   * the tail for context.
     clean=$(mktemp)
-    # ANSI off, then keep only the newest run: the file can accumulate several
-    # retries. Split on the stage header and drop everything before the last
-    # full cycle that contains a `result:` line.
-    sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' "$log" > "$clean.raw"
-    awk '
-      { lines[NR] = $0 }
-      /^===== result: / { last_result = NR }
-      END {
-        # Find the first stage header of the final run: walk back from the
-        # result line to the header that starts the cycle.
-        start = 1
-        if (last_result) {
-          for (i = 1; i <= last_result; i++) {
-            if (lines[i] ~ /^===== cargo |^===== rust |^===== gradle |^===== kotlin/) start = i
-          }
-        }
-        for (i = start; i <= NR; i++) print lines[i]
-      }
-    ' "$clean.raw" > "$clean"
-    rm -f "$clean.raw"
+    sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' "$log" > "$clean"
     echo '```'
     grep -E '^(=====|!! FAILED|BUILD |FAILURE)' "$clean" | head -n 40
     echo ''

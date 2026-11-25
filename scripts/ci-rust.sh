@@ -8,7 +8,15 @@ cd "$(dirname "$0")/../rust"
 fail=0
 run() {
   echo "===== $* =====" >> "$LOG"
-  ( "$@" ) >> "$LOG" 2>&1 || { echo "!! FAILED: $*" >> "$LOG"; fail=1; }
+  if ( "$@" ) >> "$LOG" 2>&1; then
+    return 0
+  fi
+  echo "!! FAILED: $*" >> "$LOG"
+  fail=1
+  # Surface the failing test names: `cargo test` prints them after "failures:".
+  if [ "$1" = "cargo" ] && { [ "$2" = "test" ] || [ "$2" = "nextest" ]; }; then
+    grep -E '^(test result: FAILED|    [a-z_:]+$|failures:)' "$LOG" | tail -n 20 >> "$LOG"
+  fi
 }
 # Formatting is enforced by the autofix step (it commits the fmt result), so a
 # dirty fmt check must not fail the build; clippy below still gates on warnings.
