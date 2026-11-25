@@ -41,13 +41,13 @@ import cloud.fuss.core.FussNative
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
-    val ctx = LocalContext.current
-    val prefs = remember { ctx.getSharedPreferences("fuss", 0) }
-    var themeDark by remember { mutableStateOf(if (prefs.contains("dark")) prefs.getBoolean("dark", false) else false) }
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("fuss", 0)
     var followSystem by remember { mutableStateOf(!prefs.contains("dark")) }
+    var dark by remember { mutableStateOf(prefs.getBoolean("dark", false)) }
     var dynamic by remember { mutableStateOf(prefs.getBoolean("dynamic", false)) }
-    var report by remember { mutableStateOf<String?>(null) }
-    var crash by remember { mutableStateOf<String?>(null) }
+    var report by remember { mutableStateOf("") }
+    var crashLog by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -61,67 +61,82 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
         },
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
-            SettingsRow("Follow system theme", followSystem) {
-                followSystem = it
-                if (it) prefs.edit().remove("dark").apply() else prefs.edit().putBoolean("dark", themeDark).apply()
-            }
+        Column(
+            Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            SettingSwitch(
+                label = "Follow system theme",
+                checked = followSystem,
+                onChange = {
+                    followSystem = it
+                    val editor = prefs.edit()
+                    if (it) editor.remove("dark") else editor.putBoolean("dark", dark)
+                    editor.apply()
+                },
+            )
             if (!followSystem) {
-                SettingsRow("Dark theme", themeDark) {
-                    themeDark = it
-                    prefs.edit().putBoolean("dark", it).apply()
-                }
-            }
-            SettingsRow("Dynamic colour (Android 12+)", dynamic) {
-                dynamic = it
-                prefs.edit().putBoolean("dynamic", it).apply()
-            }
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            Column(Modifier.padding(16.dp)) {
-                Text("Privacy", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Fuss has no network permission, no analytics, no ads and no background services. " +
-                        "The only permissions it can request are for reading media files you browse; " +
-                        "everything else goes through folders you explicitly grant.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                SettingSwitch(
+                    label = "Dark theme",
+                    checked = dark,
+                    onChange = {
+                        dark = it
+                        prefs.edit().putBoolean("dark", it).apply()
+                    },
                 )
             }
+            SettingSwitch(
+                label = "Dynamic colour (Android 12+)",
+                checked = dynamic,
+                onChange = {
+                    dynamic = it
+                    prefs.edit().putBoolean("dynamic", it).apply()
+                },
+            )
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            InfoBlock(
+                title = "Privacy",
+                body = "Fuss has no network permission, no analytics, no ads and no background " +
+                    "services. It requests media-read access only so thumbnails and previews can " +
+                    "be shown, and reaches everything else through folders you grant with the " +
+                    "system picker.",
+            )
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             Column(Modifier.padding(16.dp)) {
                 Text("Diagnostics", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    "Engine: ${runCatching { FussNative.version() }.getOrDefault("not loaded")}",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Text(engineLine(), style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(4.dp))
-                TextButton(onClick = { report = FussNative.selfTest() }) {
+                TextButton(onClick = { report = engineSelfTest() }) {
                     Text("Run engine self-test")
                 }
-                report?.let {
-                    Text(
-                        it.replace(";", "\n"),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (it.contains("FAIL")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                if (report.isNotEmpty()) {
+                    Text(report, style = MaterialTheme.typography.bodySmall)
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             Column(Modifier.padding(16.dp)) {
-                Text("Clear history", style = MaterialTheme.typography.titleSmall)
-                TextButton(onClick = { RecentStore(ctx).clearRecent() }) { Text("Clear recent folders") }
+                Text("History", style = MaterialTheme.typography.titleSmall)
+                TextButton(onClick = { RecentStore(context).clearRecent() }) {
+                    Text("Clear recent folders")
+                }
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             Column(Modifier.padding(16.dp)) {
-                Text("Last crash", style = MaterialTheme.typography.titleSmall)
-                if (crash == null) {
-                    TextButton(onClick = { crash = CrashLog.last(ctx) ?: "No crash log found" }) {
-                        Text("Show last crash log")
-                    }
+                Text("Crash log", style = MaterialTheme.typography.titleSmall)
+                TextButton(onClick = { crashLog = readCrash(context) }) {
+                    Text("Show last crash")
+                }
+                if (crashLog.isNotEmpty()) {
+                    Text(crashLog, style = MaterialTheme.typography.labelSmall)
                 } else {
-                    Text(crash!!, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    Text(
+                        "No crash recorded.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
             Spacer(Modifier.height(24.dp))
@@ -129,13 +144,45 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 }
 
+private fun engineLine(): String {
+    return try {
+        "Engine: " + FussNative.version()
+    } catch (e: Throwable) {
+        "Engine: not loaded (" + (e.message ?: e.javaClass.simpleName) + ")"
+    }
+}
+
+private fun engineSelfTest(): String {
+    return try {
+        FussNative.selfTest().replace("; ", "\n")
+    } catch (e: Throwable) {
+        "Self-test failed: " + (e.message ?: e.javaClass.simpleName)
+    }
+}
+
+private fun readCrash(context: android.content.Context): String {
+    val text = CrashLog.last(context)
+    return text ?: "No crash log found"
+}
+
 @Composable
-private fun SettingsRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun InfoBlock(title: String, body: String) {
+    Column(Modifier.padding(16.dp)) {
+        Text(title, style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(4.dp))
+        Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

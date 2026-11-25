@@ -46,40 +46,39 @@ import cloud.fuss.core.LargeFile
 import cloud.fuss.core.TypeStat
 import java.io.File
 
-private enum class AnalysisTab(val label: String) {
-    OVERVIEW("Size"),
-    LARGE("Large"),
-    EMPTY("Empty"),
-    TYPES("Types"),
-    DUPLICATES("Dupes"),
-}
+private const val TAB_OVERVIEW = 0
+private const val TAB_LARGE = 1
+private const val TAB_EMPTY = 2
+private const val TAB_TYPES = 3
+private const val TAB_DUPLICATES = 4
+
+private val TAB_LABELS = arrayOf("Size", "Large", "Empty", "Types", "Dupes")
 
 /**
- * Storage analysis for one root. Each tab triggers exactly one engine scan, with
- * its own cancel token; switching tabs cancels nothing mid-flight (the engine
- * call completes quickly for the sizes involved) but leaving the screen does.
+ * Storage analysis for one root. Each tab triggers exactly one engine scan with
+ * its own cancel token; leaving the screen cancels the running scan.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StorageScreen(root: String, onBack: () -> Unit, onOpen: (String) -> Unit) {
     val repo = remember { FsRepository() }
-    var tab by remember { mutableStateOf(AnalysisTab.OVERVIEW) }
+    var tab by remember { mutableStateOf(TAB_OVERVIEW) }
     var busy by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf("") }
 
-    var childSizes by remember(root) { mutableStateOf<List<ChildDirSize>>(emptyList()) }
-    var largest by remember(root) { mutableStateOf<List<LargeFile>>(emptyList()) }
-    var empties by remember(root) { mutableStateOf<List<String>>(emptyList()) }
-    var types by remember(root) { mutableStateOf<List<TypeStat>>(emptyList()) }
-    var dups by remember(root) { mutableStateOf<DuplicateResults?>(null) }
-    var totalBytes by remember(root) { mutableStateOf(0L) }
+    var childSizes by remember { mutableStateOf(emptyList<ChildDirSize>()) }
+    var totalBytes by remember { mutableStateOf(0L) }
+    var largest by remember { mutableStateOf(emptyList<LargeFile>()) }
+    var empties by remember { mutableStateOf(emptyList<String>()) }
+    var types by remember { mutableStateOf(emptyList<TypeStat>()) }
+    var dups by remember { mutableStateOf<DuplicateResults?>(null) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        "Storage: ${File(root).name.ifEmpty { root }}",
+                        "Storage: " + File(root).name,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -92,50 +91,73 @@ fun StorageScreen(root: String, onBack: () -> Unit, onOpen: (String) -> Unit) {
             )
         },
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-                AnalysisTab.entries.forEachIndexed { i, t ->
+        Column(
+            Modifier
+                .padding(padding)
+                .fillMaxSize(),
+        ) {
+            SingleChoiceSegmentedButtonRow(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+            ) {
+                for (i in TAB_LABELS.indices) {
                     SegmentedButton(
-                        selected = tab == t,
-                        onClick = { tab = t },
-                        shape = SegmentedButtonDefaults.itemShape(i, AnalysisTab.entries.size),
-                    ) { Text(t.label, style = MaterialTheme.typography.labelSmall, maxLines = 1) }
+                        selected = tab == i,
+                        onClick = { tab = i },
+                        shape = SegmentedButtonDefaults.itemShape(i, TAB_LABELS.size),
+                    ) {
+                        Text(TAB_LABELS[i], style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
-            if (busy) BusyBanner("Analysing…")
-            if (error != null) {
-                EmptyState(title = error!!)
+            if (busy) {
+                BusyBanner("Analysing…")
+            }
+            if (error.isNotEmpty()) {
+                EmptyState(title = error)
+            } else if (tab == TAB_OVERVIEW) {
+                OverviewList(childSizes, totalBytes, onOpen)
+            } else if (tab == TAB_LARGE) {
+                LargeList(largest, onOpen)
+            } else if (tab == TAB_EMPTY) {
+                EmptyList(empties)
+            } else if (tab == TAB_TYPES) {
+                TypeList(types)
             } else {
-                when (tab) {
-                    AnalysisTab.OVERVIEW -> OverviewList(childSizes, totalBytes, onOpen)
-                    AnalysisTab.LARGE -> FileList(largest, onOpen)
-                    AnalysisTab.EMPTY -> EmptyList(empties)
-                    AnalysisTab.TYPES -> TypeList(types)
-                    AnalysisTab.DUPLICATES -> DuplicateList(dups)
-                }
+                DuplicateList(dups, busy)
             }
         }
     }
 
     LaunchedEffect(root, tab) {
         busy = true
-        error = null
+        error = ""
         try {
-            when (tab) {
-                AnalysisTab.OVERVIEW -> {
-                    childSizes = repo.childDirSizes(root)
-                    totalBytes = childSizes.sumOf { it.bytes }
-                }
-                AnalysisTab.LARGE -> largest = repo.largestFiles(root, 150)
-                AnalysisTab.EMPTY -> empties = repo.emptyDirs(root, 500)
-                AnalysisTab.TYPES -> types = repo.typeStats(root)
-                AnalysisTab.DUPLICATES -> dups = repo.duplicates(root)
+            if (tab == TAB_OVERVIEW) {
+                val sizes = repo.childDirSizes(root)
+                childSizes = sizes
+                var sum = 0L
+                for (d in sizes) sum += d.bytes
+                totalBytes = sum
+            } else if (tab == TAB_LARGE) {
+                largest = repo.largestFiles(root, 150)
+            } else if (tab == TAB_EMPTY) {
+                empties = repo.emptyDirs(root, 500)
+            } else if (tab == TAB_TYPES) {
+                types = repo.typeStats(root)
+            } else {
+                dups = repo.duplicates(root)
             }
         } catch (e: FussException) {
             if (!e.isCancellation) error = e.userMessage()
-        } catch (_: Exception) {
-            // Cancellation from leaving the screen.
+        } catch (e: Exception) {
+            // A cancelled scan surfaces as an ordinary exception; only report it
+            // when it is not a coroutine cancellation.
+            if (e !is kotlinx.coroutines.CancellationException) {
+                error = e.message ?: "Analysis failed"
+            }
         } finally {
             busy = false
         }
@@ -151,31 +173,48 @@ private fun OverviewList(items: List<ChildDirSize>, total: Long, onOpen: (String
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(16.dp)) {
-                Text("${Format.size(total)} in folders", style = MaterialTheme.typography.titleMedium)
+                Text(Format.size(total) + " in folders", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${items.size} top-level folders, largest first",
+                    items.size.toString() + " top-level folders, largest first",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        items(items, key = { it.path }) { d ->
+        items(items) { d ->
+            val frac: Float = if (total > 0L) d.bytes.toFloat() / total.toFloat() else 0f
             Column(
-                Modifier.fillMaxWidth()
+                Modifier
+                    .fillMaxWidth()
                     .clickable { onOpen(d.path) }
                     .padding(horizontal = 16.dp, vertical = 6.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    Icon(
+                        Icons.Outlined.Folder,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
                     Spacer(Modifier.width(10.dp))
-                    Text(File(d.path).name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        File(d.path).name,
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Text(Format.size(d.bytes), style = MaterialTheme.typography.bodyMedium)
                 }
                 Spacer(Modifier.height(4.dp))
-                val frac = if (total > 0) d.bytes.toFloat() / total else 0f
-                LinearProgressIndicator(progress = { frac }, modifier = Modifier.fillMaxWidth().height(3.dp))
+                LinearProgressIndicator(
+                    progress = { frac },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp),
+                )
                 Text(
-                    "${d.files} files · ${d.dirs} folders",
+                    d.files.toString() + " files · " + d.dirs.toString() + " folders",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp),
@@ -186,18 +225,21 @@ private fun OverviewList(items: List<ChildDirSize>, total: Long, onOpen: (String
 }
 
 @Composable
-private fun FileList(items: List<LargeFile>, onOpen: (String) -> Unit) {
+private fun LargeList(items: List<LargeFile>, onOpen: (String) -> Unit) {
     if (items.isEmpty()) {
         EmptyState(title = "No files found")
         return
     }
     LazyColumn(Modifier.fillMaxSize()) {
-        items(items, key = { it.path }) { f ->
+        items(items) { f ->
+            val dir = f.path.substringBeforeLast('/')
             TwoLineRow(
                 primary = File(f.path).name,
-                secondary = "${Format.size(f.size)} · ${f.path.substringBeforeLast('/')}",
-                leading = { Icon(Icons.Outlined.InsertDriveFile, contentDescription = null, modifier = Modifier.size(22.dp)) },
-                onClick = { onOpen(f.path.substringBeforeLast('/')) },
+                secondary = Format.size(f.size) + " · " + dir,
+                leading = {
+                    Icon(Icons.Outlined.InsertDriveFile, contentDescription = null, modifier = Modifier.size(22.dp))
+                },
+                onClick = { onOpen(dir) },
             )
         }
     }
@@ -214,9 +256,29 @@ private fun EmptyList(items: List<String>) {
             TwoLineRow(
                 primary = File(p).name,
                 secondary = p,
-                leading = { Icon(Icons.Outlined.Folder, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                leading = {
+                    Icon(Icons.Outlined.Folder, contentDescription = null, modifier = Modifier.size(22.dp))
+                },
             )
         }
+    }
+}
+
+private fun kindName(kind: Int): String {
+    return when (kind) {
+        FileEntry.KIND_IMAGE -> "Images"
+        FileEntry.KIND_VIDEO -> "Videos"
+        FileEntry.KIND_AUDIO -> "Audio"
+        FileEntry.KIND_TEXT -> "Text"
+        FileEntry.KIND_PDF -> "PDF"
+        FileEntry.KIND_DOCUMENT -> "Documents"
+        FileEntry.KIND_SPREADSHEET -> "Spreadsheets"
+        FileEntry.KIND_PRESENTATION -> "Presentations"
+        FileEntry.KIND_ARCHIVE -> "Archives"
+        FileEntry.KIND_APK -> "Apps"
+        FileEntry.KIND_CODE -> "Code"
+        FileEntry.KIND_FONT -> "Fonts"
+        else -> "Other"
     }
 }
 
@@ -227,31 +289,27 @@ private fun TypeList(items: List<TypeStat>) {
         return
     }
     LazyColumn(Modifier.fillMaxSize()) {
-        items(items, key = { it.kind }) { t ->
-            val name = when (t.kind) {
-                FileEntry.KIND_IMAGE -> "Images"
-                FileEntry.KIND_VIDEO -> "Videos"
-                FileEntry.KIND_AUDIO -> "Audio"
-                FileEntry.KIND_TEXT -> "Text"
-                FileEntry.KIND_PDF -> "PDF"
-                FileEntry.KIND_DOCUMENT -> "Documents"
-                FileEntry.KIND_SPREADSHEET -> "Spreadsheets"
-                FileEntry.KIND_PRESENTATION -> "Presentations"
-                FileEntry.KIND_ARCHIVE -> "Archives"
-                FileEntry.KIND_APK -> "Apps"
-                FileEntry.KIND_CODE -> "Code"
-                FileEntry.KIND_FONT -> "Fonts"
-                else -> "Other"
-            }
+        items(items) { t ->
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(FileIcons.icon(t.kind), contentDescription = null, tint = FileIcons.tint(t.kind), modifier = Modifier.size(20.dp))
+                Icon(
+                    FileIcons.icon(t.kind),
+                    contentDescription = null,
+                    tint = FileIcons.tint(t.kind),
+                    modifier = Modifier.size(20.dp),
+                )
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(name, style = MaterialTheme.typography.bodyLarge)
-                    Text("${t.count} files", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(kindName(t.kind), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        t.count.toString() + " files",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 Text(Format.size(t.bytes), style = MaterialTheme.typography.bodyMedium)
             }
@@ -260,9 +318,9 @@ private fun TypeList(items: List<TypeStat>) {
 }
 
 @Composable
-private fun DuplicateList(dups: DuplicateResults?) {
+private fun DuplicateList(dups: DuplicateResults?, busy: Boolean) {
     if (dups == null) {
-        LoadingState()
+        if (busy) LoadingState() else EmptyState(title = "No duplicate scan yet")
         return
     }
     if (dups.groups.isEmpty()) {
@@ -272,25 +330,29 @@ private fun DuplicateList(dups: DuplicateResults?) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(16.dp)) {
-                Text("${Format.size(dups.totalWasted)} reclaimable", style = MaterialTheme.typography.titleMedium)
+                Text(Format.size(dups.totalWasted) + " reclaimable", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${dups.groups.size} groups of byte-identical files (size + SHA-256)",
+                    dups.groups.size.toString() + " groups of byte-identical files (size, then SHA-256)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        items(dups.groups, key = { it.paths.first() }) { g ->
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Text(File(g.paths.first()).name, style = MaterialTheme.typography.bodyLarge)
+        items(dups.groups) { g ->
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            ) {
+                Text(File(g.paths[0]).name, style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    "${g.paths.size} copies · ${Format.size(g.size)} each",
+                    g.paths.size.toString() + " copies · " + Format.size(g.size) + " each",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                g.paths.forEach { p ->
+                for (path in g.paths) {
                     Text(
-                        p,
+                        path,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

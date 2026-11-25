@@ -14,28 +14,32 @@ body_file=$(mktemp)
   echo "### $title — $status"
   echo ""
   if [ -f "$log" ]; then
-    # GitHub comments cap at 65536 chars, and the useful lines are the first
-    # errors -- not the tail. Strip ANSI codes, then show: every line that looks
-    # like a diagnostic, plus the stage markers, then a short tail for context.
+    # GitHub comments cap at 65536 chars and the useful lines are the first
+    # errors, not the tail. Strip ANSI, then print:
+    #   * stage markers and failed stages,
+    #   * up to 3 errors per source file (deduplicated by message),
+    #   * the tail for context.
     clean=$(mktemp)
     sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' "$log" > "$clean"
     echo '```'
-    {
-      grep -nE '^(e:|w: |error|warning: |FAILURE|What went wrong|\* What went wrong|> |Caused by|!! FAILED|===== )' "$clean" \
-        | head -n 220
-      echo '...'
-      echo '--- last 120 lines ---'
-      tail -n 120 "$clean"
-    } | head -c 52000
+    grep -E '^(=====|!! FAILED|BUILD |FAILURE)' "$clean" | head -n 40
+    echo ''
+    echo '--- errors (max 3 per file) ---'
+    awk '
+      /^e: / {
+        line=$0
+        sub(/^e: file:[^ ]*\//, "", line)         # drop the checkout prefix
+        split(line, a, ":")
+        file=a[1]; msg=$0; sub(/^e: file:[^:]*:[0-9]+:[0-9]+ /, "", msg)
+        key=file "|" msg
+        if (count[key]++ < 3) print $0
+      }
+      /^error(\[|:)/ || /What went wrong/ || /^> / { print }
+    ' "$clean" | head -n 160
+    echo ''
+    echo '--- last 60 lines ---'
+    tail -n 60 "$clean"
     echo '```'
-    echo ""
-    echo "<details><summary>full diagnostics (first 400 lines)</summary>"
-    echo ""
-    echo '```'
-    head -n 400 "$clean" | head -c 30000
-    echo '```'
-    echo ""
-    echo "</details>"
     rm -f "$clean"
   else
     echo "(no log produced)"
