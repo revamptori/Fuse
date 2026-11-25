@@ -26,7 +26,7 @@ use jni::JNIEnv;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 // ---------------------------------------------------------------------------
 // Cancel handles
@@ -39,6 +39,10 @@ static NEXT_HANDLE: AtomicU64 = AtomicU64::new(1);
 /// token the worker thread polls.
 type TokenTable = Mutex<Vec<(u64, Arc<CancelToken>)>>;
 
+/// A locked token table. The mutex is only held for a lookup/insert, never
+/// across a filesystem operation.
+type Tokens = MutexGuard<'static, Vec<(u64, Arc<CancelToken>)>>;
+
 static TOKENS: OnceLock<TokenTable> = OnceLock::new();
 
 fn token_table() -> &'static TokenTable {
@@ -47,7 +51,7 @@ fn token_table() -> &'static TokenTable {
 
 fn insert_token(token: Arc<CancelToken>) -> u64 {
     let handle = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed);
-    let mut guard = token_table().lock().unwrap_or_else(|e| e.into_inner());
+    let mut guard: Tokens = token_table().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     // Opportunistically prune finished tokens to keep the table tiny.
     if guard.len() > 64 {
         guard.retain(|(_, t)| !t.is_cancelled());
@@ -57,7 +61,7 @@ fn insert_token(token: Arc<CancelToken>) -> u64 {
 }
 
 fn token_for(handle: u64) -> Arc<CancelToken> {
-    let guard = token_table().lock().unwrap_or_else(|e| e.into_inner());
+    let guard: Tokens = token_table().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     guard
         .iter()
         .find(|(h, _)| *h == handle)
@@ -240,7 +244,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_freeCancelToken(
     _c: JClass,
     handle: jlong,
 ) {
-    let mut guard = token_table().lock().unwrap_or_else(|e| e.into_inner());
+    let mut guard: Tokens = token_table().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     guard.retain(|(h, _)| *h != handle as u64);
 }
 
