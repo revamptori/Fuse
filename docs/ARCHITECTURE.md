@@ -27,7 +27,9 @@ Android specifics live in Kotlin, and the boundary between them is small.**
   parsing are CPU- and syscall-bound. Doing them in Rust with fixed buffers,
   `walkdir`, and no Java object churn keeps allocations flat regardless of file
   size and avoids GC pauses during large transfers.
-* **Small JNI surface.** There are 30 native functions. Each returns either a
+* **Small JNI surface.** There are 35 native functions, registered by name in
+  `JNI_OnLoad` from a single table that a host test checks against
+  `FussNative.kt`. Each returns either a
   primitive, a `String`, or one `ByteArray` of encoded results. No Java objects
   are constructed from Rust, no callbacks jump back into the JVM mid-operation,
   and no `jobject` arrays are held across calls. This keeps the

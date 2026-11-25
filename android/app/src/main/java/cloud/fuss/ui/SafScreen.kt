@@ -139,12 +139,19 @@ fun SafScreen(
                             if (!n.isDir) {
                                 IconButton(onClick = {
                                     scope.launch {
-                                        val dest = File(ctx.filesDir, "saf-import")
+                                        // SAF has no filesystem path, so a tree
+                                        // can only join the engine by being
+                                        // streamed somewhere real. App storage
+                                        // is the one writable location that
+                                        // needs no permission and accepts any
+                                        // file type, so imports land there and
+                                        // the user is taken to them.
+                                        val dest = File(ctx.filesDir, "imports")
                                         val copied = withContext(Dispatchers.IO) { SafBrowser.copyTo(ctx, n.uri, dest) }
                                         if (copied == null) {
                                             message = "Copy failed: ${n.name}"
                                         } else {
-                                            message = "Copied ${copied.name} to Fuss storage"
+                                            message = "Copied ${copied.name} into Fuss storage"
                                             onCopied(copied.absolutePath)
                                         }
                                     }

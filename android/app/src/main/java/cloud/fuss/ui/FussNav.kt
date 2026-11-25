@@ -18,6 +18,7 @@ import cloud.fuss.app.BrowseViewModel
 import cloud.fuss.app.OpenWith
 import cloud.fuss.app.SafStore
 import cloud.fuss.core.FileEntry
+import java.io.File
 
 /**
  * Screen stack. A hand-written back stack (not Navigation-Compose) keeps the
@@ -136,7 +137,14 @@ fun FussNav(darkOverride: Boolean?, dynamic: Boolean) {
                 treeUri = s.uri,
                 treeLabel = s.label,
                 onBack = { pop() },
-                onCopied = { /* import lands in app storage; refresh home next visit */ },
+                onCopied = { importedPath ->
+                    // Jump to the folder the import landed in so the user can see
+                    // it immediately, instead of being told to go hunting.
+                    File(importedPath).parent?.let { dir ->
+                        vm.open(dir)
+                        push(Screen.Browse(dir))
+                    }
+                },
             )
             is Screen.Settings -> SettingsScreen(onBack = { pop() })
         }

@@ -9,14 +9,14 @@ import androidx.documentfile.provider.DocumentFile
 /**
  * Persisted Storage Access Framework directory grants.
  *
- * A granted tree is browsed by opening the document for each child and reading
- * through `/proc/self/fd/N`, which the Rust engine treats like any other path.
- * That keeps one filesystem engine for both plain and SAF storage instead of a
- * parallel implementation.
+ * SAF trees have `content://` URIs and no filesystem path, so they are listed
+ * through [DocumentFile] in Kotlin ([SafBrowser]) rather than through the Rust
+ * engine. Files can be streamed *out* of a tree into app-visible storage, at
+ * which point the engine takes over; nothing is buffered in memory.
  *
- * Only *directories* are grantable here; single files the user picks are routed
- * to the system previewer, because the engine's operations need a stable path
- * hierarchy to be meaningful.
+ * Only directories are grantable: the engine's copy/move/delete operations need
+ * a stable path hierarchy to be meaningful, and a tree URI provides that only
+ * once it is imported.
  */
 class SafStore(private val context: Context) {
 
