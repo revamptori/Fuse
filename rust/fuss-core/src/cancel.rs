@@ -76,7 +76,10 @@ mod tests {
         let t = CancelToken::new();
         assert!(t.check().is_ok());
         t.cancel();
-        assert_eq!(t.check().unwrap_err().code, crate::error::ErrorCode::Cancelled);
+        assert_eq!(
+            t.check().unwrap_err().code,
+            crate::error::ErrorCode::Cancelled
+        );
         t.add_processed(5);
         t.add_processed(7);
         assert_eq!(t.processed(), 12);

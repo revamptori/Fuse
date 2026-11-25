@@ -26,7 +26,10 @@ pub struct DirSize {
 /// Recursively total a directory. Symlinks are not followed; unreadable
 /// entries are counted and skipped.
 pub fn dir_size(root: &Path, cancel: &CancelToken) -> Result<DirSize> {
-    let mut out = DirSize { path: root.to_string_lossy().into_owned(), ..Default::default() };
+    let mut out = DirSize {
+        path: root.to_string_lossy().into_owned(),
+        ..Default::default()
+    };
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
         cancel.check()?;
@@ -108,7 +111,11 @@ pub fn largest_files(root: &Path, limit: usize, cancel: &CancelToken) -> Result<
     }
     let mut v: Vec<FileHit> = heap
         .into_iter()
-        .map(|std::cmp::Reverse((size, path, modified))| FileHit { path, size, modified })
+        .map(|std::cmp::Reverse((size, path, modified))| FileHit {
+            path,
+            size,
+            modified,
+        })
         .collect();
     v.sort_by_key(|a| std::cmp::Reverse(a.size));
     Ok(v)
@@ -277,7 +284,10 @@ pub fn find_duplicates(
             for p in &candidates {
                 cancel.check()?;
                 match full_hash(p, cancel) {
-                    Ok(h) => full.entry(h).or_default().push(p.to_string_lossy().into_owned()),
+                    Ok(h) => full
+                        .entry(h)
+                        .or_default()
+                        .push(p.to_string_lossy().into_owned()),
                     Err(_) => continue,
                 }
             }
@@ -359,7 +369,15 @@ mod tests {
     use super::*;
 
     fn tmpdir(tag: &str) -> PathBuf {
-        let p = std::env::temp_dir().join(format!("fuss-an-{}-{}-{}", tag, std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let p = std::env::temp_dir().join(format!(
+            "fuss-an-{}-{}-{}",
+            tag,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         fs::create_dir_all(&p).unwrap();
         p
     }

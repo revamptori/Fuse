@@ -49,8 +49,10 @@ pub struct Listing {
 pub fn list_dir(path: &Path, opts: ListOptions, cancel: &CancelToken) -> Result<Listing> {
     let meta = fs::metadata(path).map_err(|e| FsError::from_io_path(e, path))?;
     if !meta.is_dir() {
-        return Err(FsError::new(crate::error::ErrorCode::NotADirectory, "Not a directory")
-            .with_path(path.to_string_lossy()));
+        return Err(
+            FsError::new(crate::error::ErrorCode::NotADirectory, "Not a directory")
+                .with_path(path.to_string_lossy()),
+        );
     }
     let rd = fs::read_dir(path).map_err(|e| FsError::from_io_path(e, path))?;
     let cap = opts.limit.clamp(1, 4096);
@@ -91,13 +93,20 @@ pub fn list_dir(path: &Path, opts: ListOptions, cancel: &CancelToken) -> Result<
         }
         let child = item.path();
         let meta = if opts.follow_symlinks {
-            fs::metadata(&child).or_else(|_| fs::symlink_metadata(&child)).ok()
+            fs::metadata(&child)
+                .or_else(|_| fs::symlink_metadata(&child))
+                .ok()
         } else {
             fs::symlink_metadata(&child).ok()
         };
         out.push(Entry::from_parts(name_str.into_owned(), meta.as_ref()));
     }
-    Ok(Listing { entries: out, has_more, total_scanned: scanned, error: None })
+    Ok(Listing {
+        entries: out,
+        has_more,
+        total_scanned: scanned,
+        error: None,
+    })
 }
 
 /// Count of all entries in a directory (including hidden), without metadata.
@@ -160,7 +169,15 @@ mod tests {
     use super::*;
 
     fn tmpdir(tag: &str) -> PathBuf {
-        let p = std::env::temp_dir().join(format!("fuss-list-{}-{}-{}", tag, std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let p = std::env::temp_dir().join(format!(
+            "fuss-list-{}-{}-{}",
+            tag,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         fs::create_dir_all(&p).unwrap();
         p
     }
@@ -175,7 +192,15 @@ mod tests {
         let l = list_dir(&d, ListOptions::default(), &t).unwrap();
         assert_eq!(l.entries.len(), 2);
         assert!(l.entries.iter().all(|e| !e.name.starts_with('.')));
-        let l2 = list_dir(&d, ListOptions { show_hidden: true, ..Default::default() }, &t).unwrap();
+        let l2 = list_dir(
+            &d,
+            ListOptions {
+                show_hidden: true,
+                ..Default::default()
+            },
+            &t,
+        )
+        .unwrap();
         assert_eq!(l2.entries.len(), 3);
         let sub = l2.entries.iter().find(|e| e.name == "sub").unwrap();
         assert!(sub.is_dir);
@@ -190,12 +215,38 @@ mod tests {
             fs::write(d.join(format!("f{i:02}.txt")), "").unwrap();
         }
         let t = CancelToken::new();
-        let l = list_dir(&d, ListOptions { limit: 10, ..Default::default() }, &t).unwrap();
+        let l = list_dir(
+            &d,
+            ListOptions {
+                limit: 10,
+                ..Default::default()
+            },
+            &t,
+        )
+        .unwrap();
         assert_eq!(l.entries.len(), 10);
         assert!(l.has_more);
-        let l2 = list_dir(&d, ListOptions { limit: 10, offset: 10, ..Default::default() }, &t).unwrap();
+        let l2 = list_dir(
+            &d,
+            ListOptions {
+                limit: 10,
+                offset: 10,
+                ..Default::default()
+            },
+            &t,
+        )
+        .unwrap();
         assert_eq!(l2.entries.len(), 10);
-        let l3 = list_dir(&d, ListOptions { limit: 10, offset: 20, ..Default::default() }, &t).unwrap();
+        let l3 = list_dir(
+            &d,
+            ListOptions {
+                limit: 10,
+                offset: 20,
+                ..Default::default()
+            },
+            &t,
+        )
+        .unwrap();
         assert_eq!(l3.entries.len(), 5);
         assert!(!l3.has_more);
         fs::remove_dir_all(&d).unwrap();

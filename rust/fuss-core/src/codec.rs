@@ -15,7 +15,9 @@ pub struct Writer {
 
 impl Writer {
     pub fn with_capacity(cap: usize) -> Writer {
-        Writer { buf: Vec::with_capacity(cap) }
+        Writer {
+            buf: Vec::with_capacity(cap),
+        }
     }
 
     pub fn u8(&mut self, v: u8) {
@@ -112,7 +114,8 @@ impl<'a> Reader<'a> {
     }
 
     pub fn u32(&mut self) -> Option<u32> {
-        self.take(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        self.take(4)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
     }
 
     pub fn u64(&mut self) -> Option<u64> {

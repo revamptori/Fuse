@@ -54,15 +54,38 @@ pub fn self_test() -> Vec<(String, bool)> {
         out.push(("write".to_string(), std::fs::write(p, b"fuss").is_ok()));
     }
     let list = crate::listing::list_dir(&dir, ListOptions::default(), &token);
-    out.push(("list".to_string(), list.map(|l| l.entries.len() == 1).unwrap_or(false)));
-    let copy = f.as_ref().ok().map(|p| crate::fsops::copy_file(p, &dir.join("b.txt"), crate::fsops::CollisionMode::Fail, &token));
+    out.push((
+        "list".to_string(),
+        list.map(|l| l.entries.len() == 1).unwrap_or(false),
+    ));
+    let copy = f.as_ref().ok().map(|p| {
+        crate::fsops::copy_file(
+            p,
+            &dir.join("b.txt"),
+            crate::fsops::CollisionMode::Fail,
+            &token,
+        )
+    });
     out.push(("copy".to_string(), matches!(copy, Some(Ok(_)))));
-    out.push(("readback".to_string(), std::fs::read(dir.join("b.txt")).map(|b| b == b"fuss").unwrap_or(false)));
+    out.push((
+        "readback".to_string(),
+        std::fs::read(dir.join("b.txt"))
+            .map(|b| b == b"fuss")
+            .unwrap_or(false),
+    ));
     let zip_path = dir.join("t.zip");
     let made = crate::archive::create_zip(&[dir.join("a.txt")], &zip_path, &token);
     out.push(("zip create".to_string(), made.is_ok()));
-    out.push(("zip list".to_string(), crate::archive::list(&zip_path, &token).map(|c| c.entries.len() == 1).unwrap_or(false)));
-    out.push(("delete".to_string(), crate::fsops::delete_path(&dir, &token, &mut crate::fsops::OpStats::default()).is_ok()));
+    out.push((
+        "zip list".to_string(),
+        crate::archive::list(&zip_path, &token)
+            .map(|c| c.entries.len() == 1)
+            .unwrap_or(false),
+    ));
+    out.push((
+        "delete".to_string(),
+        crate::fsops::delete_path(&dir, &token, &mut crate::fsops::OpStats::default()).is_ok(),
+    ));
     out
 }
 

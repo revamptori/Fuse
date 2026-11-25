@@ -79,9 +79,17 @@ impl<R: Read> Read for DeflateDecoder<R> {
         }
         loop {
             let have_input = self.fill()?;
-            let flush = if have_input { MZFlush::None } else { MZFlush::Finish };
-            let r: StreamResult =
-                inflate(&mut self.state, &self.in_buf[self.in_pos..self.in_len], out, flush);
+            let flush = if have_input {
+                MZFlush::None
+            } else {
+                MZFlush::Finish
+            };
+            let r: StreamResult = inflate(
+                &mut self.state,
+                &self.in_buf[self.in_pos..self.in_len],
+                out,
+                flush,
+            );
             self.in_pos += r.bytes_consumed;
             match r.status {
                 Ok(MZStatus::StreamEnd) => {
@@ -345,7 +353,11 @@ impl<R: Read> Read for GzipDecoder<R> {
                 return Ok(0);
             }
             let have_input = self.refill()?;
-            let flush = if have_input { MZFlush::None } else { MZFlush::Finish };
+            let flush = if have_input {
+                MZFlush::None
+            } else {
+                MZFlush::Finish
+            };
             let state = self.member.as_mut().expect("member state");
             let r: StreamResult =
                 inflate(state, &self.in_buf[self.in_pos..self.in_len], out, flush);
@@ -381,7 +393,9 @@ mod tests {
 
     #[test]
     fn deflate_roundtrip_streaming() {
-        let payload: Vec<u8> = (0..1_000_000u32).map(|i| (i.wrapping_mul(2654435761) >> 13) as u8).collect();
+        let payload: Vec<u8> = (0..1_000_000u32)
+            .map(|i| (i.wrapping_mul(2654435761) >> 13) as u8)
+            .collect();
         let mut enc = DeflateEncoder::new(Vec::new(), 6);
         for chunk in payload.chunks(7919) {
             enc.write_all(chunk).unwrap();

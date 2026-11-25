@@ -30,7 +30,12 @@ pub struct SearchOptions {
 
 impl SearchOptions {
     pub fn new(query: &str) -> SearchOptions {
-        SearchOptions { query: query.to_string(), max_depth: 64, include_hidden: false, max_results: 20_000 }
+        SearchOptions {
+            query: query.to_string(),
+            max_depth: 64,
+            include_hidden: false,
+            max_results: 20_000,
+        }
     }
 }
 
@@ -73,7 +78,11 @@ fn matches(opts: &SearchOptions, name: &str) -> bool {
     if q.is_empty() {
         return false;
     }
-    let mode = if q.contains('*') || q.contains('?') { SearchMode::Glob } else { SearchMode::Name };
+    let mode = if q.contains('*') || q.contains('?') {
+        SearchMode::Glob
+    } else {
+        SearchMode::Name
+    };
     match mode {
         SearchMode::Glob => glob_match(q, name),
         SearchMode::Name => name.to_lowercase().contains(&q.to_lowercase()),
@@ -161,7 +170,14 @@ mod tests {
 
     #[test]
     fn search_tree() {
-        let root = std::env::temp_dir().join(format!("fuss-search-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let root = std::env::temp_dir().join(format!(
+            "fuss-search-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         fs::create_dir_all(root.join("a/b")).unwrap();
         fs::create_dir_all(root.join(".secret")).unwrap();
         fs::write(root.join("a/b/needle.txt"), "x").unwrap();
@@ -169,10 +185,23 @@ mod tests {
         fs::write(root.join(".hidden-needle"), "x").unwrap();
         let t = CancelToken::new();
         let r = search(&root, &SearchOptions::new("needle"), &t).unwrap();
-        assert_eq!(r.entries.len(), 1, "matches: {:?}", r.entries.iter().map(|(p, _)| p).collect::<Vec<_>>());
+        assert_eq!(
+            r.entries.len(),
+            1,
+            "matches: {:?}",
+            r.entries.iter().map(|(p, _)| p).collect::<Vec<_>>()
+        );
         assert!(r.entries[0].0.ends_with("a/b/needle.txt"));
         assert!(r.entries.iter().all(|(_, e)| !e.name.starts_with('.')));
-        let r2 = search(&root, &SearchOptions { include_hidden: true, ..SearchOptions::new("needle") }, &t).unwrap();
+        let r2 = search(
+            &root,
+            &SearchOptions {
+                include_hidden: true,
+                ..SearchOptions::new("needle")
+            },
+            &t,
+        )
+        .unwrap();
         assert_eq!(r2.entries.len(), 2);
         let r3 = search(&root, &SearchOptions::new("*.TXT"), &t).unwrap();
         assert_eq!(r3.entries.len(), 2);

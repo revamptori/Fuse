@@ -7,9 +7,9 @@
 
 use crate::ext::{classify_name, mime_type, FileKind};
 use std::fs::Metadata;
-use std::path::Path;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortKey {
@@ -190,10 +190,15 @@ pub fn sort_entries(entries: &mut [Entry], key: SortKey, ascending: bool) {
         }
         let ord = match key {
             SortKey::Name => natural_cmp(&a.name, &b.name),
-            SortKey::Size => a.size.cmp(&b.size).then_with(|| natural_cmp(&a.name, &b.name)),
-            SortKey::Type => (a.kind.as_u8(), &a.name)
-                .cmp(&(b.kind.as_u8(), &b.name)),
-            SortKey::Modified => a.modified.cmp(&b.modified).then_with(|| natural_cmp(&a.name, &b.name)),
+            SortKey::Size => a
+                .size
+                .cmp(&b.size)
+                .then_with(|| natural_cmp(&a.name, &b.name)),
+            SortKey::Type => (a.kind.as_u8(), &a.name).cmp(&(b.kind.as_u8(), &b.name)),
+            SortKey::Modified => a
+                .modified
+                .cmp(&b.modified)
+                .then_with(|| natural_cmp(&a.name, &b.name)),
         };
         if ascending {
             ord
@@ -209,9 +214,24 @@ mod tests {
 
     #[test]
     fn natural_order() {
-        let mut v = vec!["file10.txt", "file2.txt", "File1.txt", "file001.txt", "apple"];
+        let mut v = vec![
+            "file10.txt",
+            "file2.txt",
+            "File1.txt",
+            "file001.txt",
+            "apple",
+        ];
         v.sort_by(|a, b| natural_cmp(a, b));
-        assert_eq!(v, vec!["apple", "File1.txt", "file001.txt", "file2.txt", "file10.txt"]);
+        assert_eq!(
+            v,
+            vec![
+                "apple",
+                "File1.txt",
+                "file001.txt",
+                "file2.txt",
+                "file10.txt"
+            ]
+        );
     }
 
     #[test]
@@ -222,15 +242,39 @@ mod tests {
     }
 
     fn e(name: &str, is_dir: bool) -> Entry {
-        Entry { name: name.into(), is_dir, is_symlink: false, size: 0, modified: 0, mode: 0, kind: if is_dir { FileKind::Directory } else { FileKind::Other }, stat_ok: true }
+        Entry {
+            name: name.into(),
+            is_dir,
+            is_symlink: false,
+            size: 0,
+            modified: 0,
+            mode: 0,
+            kind: if is_dir {
+                FileKind::Directory
+            } else {
+                FileKind::Other
+            },
+            stat_ok: true,
+        }
     }
 
     #[test]
     fn dirs_first_and_descending() {
-        let mut v = vec![e("b.txt", false), e("zdir", true), e("a.txt", false), e("adir", true)];
+        let mut v = vec![
+            e("b.txt", false),
+            e("zdir", true),
+            e("a.txt", false),
+            e("adir", true),
+        ];
         sort_entries(&mut v, SortKey::Name, true);
-        assert_eq!(v.iter().map(|x| x.name.as_str()).collect::<Vec<_>>(), vec!["adir", "zdir", "a.txt", "b.txt"]);
+        assert_eq!(
+            v.iter().map(|x| x.name.as_str()).collect::<Vec<_>>(),
+            vec!["adir", "zdir", "a.txt", "b.txt"]
+        );
         sort_entries(&mut v, SortKey::Name, false);
-        assert_eq!(v.iter().map(|x| x.name.as_str()).collect::<Vec<_>>(), vec!["zdir", "adir", "b.txt", "a.txt"]);
+        assert_eq!(
+            v.iter().map(|x| x.name.as_str()).collect::<Vec<_>>(),
+            vec!["zdir", "adir", "b.txt", "a.txt"]
+        );
     }
 }

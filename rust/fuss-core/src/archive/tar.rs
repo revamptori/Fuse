@@ -84,7 +84,11 @@ fn checksum_ok(hdr: &[u8; BLOCK]) -> bool {
     let stored = parse_num(&hdr[148..156]);
     let mut sum: u64 = 0;
     for (i, &b) in hdr.iter().enumerate() {
-        sum += if (148..156).contains(&i) { b' ' as u64 } else { b as u64 };
+        sum += if (148..156).contains(&i) {
+            b' ' as u64
+        } else {
+            b as u64
+        };
     }
     stored == sum
 }
@@ -101,7 +105,8 @@ fn read_header<R: Read + Seek>(
     let mut cur = pos;
     loop {
         cancel.check()?;
-        r.seek(SeekFrom::Start(cur)).map_err(|e| FsError::from_io(e, None))?;
+        r.seek(SeekFrom::Start(cur))
+            .map_err(|e| FsError::from_io(e, None))?;
         let mut hdr = [0u8; BLOCK];
         match r.read_exact(&mut hdr) {
             Ok(()) => {}
@@ -122,7 +127,8 @@ fn read_header<R: Read + Seek>(
                 // GNU long name
                 let n = size.min(MAX_META_FILE) as usize;
                 let mut buf = vec![0u8; n];
-                r.read_exact(&mut buf).map_err(|e| FsError::from_io(e, None))?;
+                r.read_exact(&mut buf)
+                    .map_err(|e| FsError::from_io(e, None))?;
                 long_name = Some(cstr(&buf));
                 cur = data_start + size.div_ceil(BLOCK as u64) * BLOCK as u64;
                 continue;
@@ -131,7 +137,8 @@ fn read_header<R: Read + Seek>(
                 // PAX extended header for the next entry
                 let n = size.min(MAX_META_FILE) as usize;
                 let mut buf = vec![0u8; n];
-                r.read_exact(&mut buf).map_err(|e| FsError::from_io(e, None))?;
+                r.read_exact(&mut buf)
+                    .map_err(|e| FsError::from_io(e, None))?;
                 if let Some(p) = parse_pax_path(&buf) {
                     pax_path = Some(p);
                 }
@@ -170,7 +177,11 @@ fn read_header<R: Read + Seek>(
         let is_symlink = typeflag == b'2';
         let link_target = if is_symlink {
             let t = cstr(&hdr[157..257]);
-            if t.is_empty() { None } else { Some(t) }
+            if t.is_empty() {
+                None
+            } else {
+                Some(t)
+            }
         } else {
             None
         };
@@ -194,7 +205,10 @@ fn read_header<R: Read + Seek>(
             link_target,
             data_offset: data_start,
         };
-        return Ok(Some((entry, data_start + size.div_ceil(BLOCK as u64) * BLOCK as u64)));
+        return Ok(Some((
+            entry,
+            data_start + size.div_ceil(BLOCK as u64) * BLOCK as u64,
+        )));
     }
 }
 
@@ -256,23 +270,34 @@ fn is_xz(path: &Path) -> bool {
 /// True when the file name suggests a compressed tarball.
 pub fn looks_like_compressed_tar(name: &str) -> bool {
     let n = name.to_ascii_lowercase();
-    n.ends_with(".tar.gz") || n.ends_with(".tgz") || n.ends_with(".tar.bz2") || n.ends_with(".tbz2") || n.ends_with(".tar.xz") || n.ends_with(".txz")
+    n.ends_with(".tar.gz")
+        || n.ends_with(".tgz")
+        || n.ends_with(".tar.bz2")
+        || n.ends_with(".tbz2")
+        || n.ends_with(".tar.xz")
+        || n.ends_with(".txz")
 }
 
 /// Decompress a gzip stream into `out` (streaming, cancellable).
 pub fn gunzip_to(src: &Path, out: &Path, cancel: &CancelToken) -> Result<u64> {
     let f = File::open(src).map_err(|e| FsError::from_io_path(e, src))?;
     let mut gz = GzipDecoder::new(BufReader::with_capacity(64 * 1024, f));
-    let mut w = BufWriter::with_capacity(128 * 1024, File::create(out).map_err(|e| FsError::from_io_path(e, out))?);
+    let mut w = BufWriter::with_capacity(
+        128 * 1024,
+        File::create(out).map_err(|e| FsError::from_io_path(e, out))?,
+    );
     let mut buf = vec![0u8; 128 * 1024];
     let mut total = 0u64;
     loop {
         cancel.check()?;
-        let n = gz.read(&mut buf).map_err(|e| FsError::from_io_path(e, src))?;
+        let n = gz
+            .read(&mut buf)
+            .map_err(|e| FsError::from_io_path(e, src))?;
         if n == 0 {
             break;
         }
-        w.write_all(&buf[..n]).map_err(|e| FsError::from_io_path(e, out))?;
+        w.write_all(&buf[..n])
+            .map_err(|e| FsError::from_io_path(e, out))?;
         total += n as u64;
         cancel.add_processed(n as u64);
     }
@@ -285,11 +310,20 @@ pub fn gunzip_to(src: &Path, out: &Path, cancel: &CancelToken) -> Result<u64> {
 pub fn list_tar(path: &Path, cancel: &CancelToken) -> Result<TarListing> {
     let compressed = is_gzip(path);
     if is_bzip2(path) || is_xz(path) {
-        return Err(FsError::unsupported("Only gzip-compressed TAR archives are supported"));
+        return Err(FsError::unsupported(
+            "Only gzip-compressed TAR archives are supported",
+        ));
     }
     let mut tmp: Option<PathBuf> = None;
     let src = if compressed {
-        let t = std::env::temp_dir().join(format!(".fuss-tar-{}-{}.tar", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let t = std::env::temp_dir().join(format!(
+            ".fuss-tar-{}-{}.tar",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         gunzip_to(path, &t, cancel)?;
         tmp = Some(t.clone());
         t
@@ -346,25 +380,42 @@ pub fn extract_entry(
     }
     let compressed = is_gzip(archive);
     let (mut f, sandbox_dir): (File, Option<PathBuf>) = if compressed {
-        let t = std::env::temp_dir().join(format!(".fuss-tar-{}-{}.tar", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos()));
+        let t = std::env::temp_dir().join(format!(
+            ".fuss-tar-{}-{}.tar",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
         gunzip_to(archive, &t, cancel)?;
         let file = File::open(&t).map_err(|e| FsError::from_io_path(e, &t))?;
         (file, Some(t))
     } else {
-        (File::open(archive).map_err(|e| FsError::from_io_path(e, archive))?, None)
+        (
+            File::open(archive).map_err(|e| FsError::from_io_path(e, archive))?,
+            None,
+        )
     };
-    f.seek(SeekFrom::Start(entry.data_offset)).map_err(|e| FsError::from_io_path(e, archive))?;
-    let mut out = BufWriter::with_capacity(128 * 1024, File::create(dest).map_err(|e| FsError::from_io_path(e, dest))?);
+    f.seek(SeekFrom::Start(entry.data_offset))
+        .map_err(|e| FsError::from_io_path(e, archive))?;
+    let mut out = BufWriter::with_capacity(
+        128 * 1024,
+        File::create(dest).map_err(|e| FsError::from_io_path(e, dest))?,
+    );
     let mut remaining = entry.size;
     let mut buf = vec![0u8; 128 * 1024];
     while remaining > 0 {
         cancel.check()?;
         let want = buf.len().min(remaining as usize);
-        let n = f.read(&mut buf[..want]).map_err(|e| FsError::from_io_path(e, archive))?;
+        let n = f
+            .read(&mut buf[..want])
+            .map_err(|e| FsError::from_io_path(e, archive))?;
         if n == 0 {
             break;
         }
-        out.write_all(&buf[..n]).map_err(|e| FsError::from_io_path(e, dest))?;
+        out.write_all(&buf[..n])
+            .map_err(|e| FsError::from_io_path(e, dest))?;
         remaining -= n as u64;
         cancel.add_processed(n as u64);
     }
@@ -380,14 +431,25 @@ pub fn extract_entry(
 }
 
 /// Extract a whole TAR into `dest_dir`.
-pub fn extract_tar(archive: &Path, dest_dir: &Path, cancel: &CancelToken) -> Result<super::ExtractSummary> {
+pub fn extract_tar(
+    archive: &Path,
+    dest_dir: &Path,
+    cancel: &CancelToken,
+) -> Result<super::ExtractSummary> {
     let listing = list_tar(archive, cancel)?;
     let mut out = super::ExtractSummary::default();
     // Decompress once for the whole extraction when needed.
     let compressed = is_gzip(archive);
     let mut tmp: Option<PathBuf> = None;
     let src = if compressed {
-        let t = std::env::temp_dir().join(format!(".fuss-tar-{}-{}.tar", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let t = std::env::temp_dir().join(format!(
+            ".fuss-tar-{}-{}.tar",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         gunzip_to(archive, &t, cancel)?;
         tmp = Some(t.clone());
         t
@@ -415,11 +477,13 @@ pub fn extract_tar(archive: &Path, dest_dir: &Path, cancel: &CancelToken) -> Res
         }
         if let Some(parent) = dest.parent() {
             if std::fs::create_dir_all(parent).is_err() {
-                out.errors.push(format!("{}: cannot create parent", entry.path));
+                out.errors
+                    .push(format!("{}: cannot create parent", entry.path));
                 continue;
             }
         }
-        f.seek(SeekFrom::Start(entry.data_offset)).map_err(|e| FsError::from_io_path(e, &src))?;
+        f.seek(SeekFrom::Start(entry.data_offset))
+            .map_err(|e| FsError::from_io_path(e, &src))?;
         let mut out_file = match File::create(&dest) {
             Ok(f) => f,
             Err(e) => {
@@ -453,7 +517,8 @@ pub fn extract_tar(archive: &Path, dest_dir: &Path, cancel: &CancelToken) -> Res
             out.files += 1;
             out.bytes += entry.size;
             if entry.modified > 0 {
-                let t = std::time::UNIX_EPOCH + std::time::Duration::from_secs(entry.modified as u64);
+                let t =
+                    std::time::UNIX_EPOCH + std::time::Duration::from_secs(entry.modified as u64);
                 crate::fsops::set_file_times(&dest, t);
             }
         }
@@ -498,11 +563,16 @@ pub struct TarWriter<W: Write> {
 
 impl<W: Write> TarWriter<W> {
     pub fn new(w: W) -> TarWriter<W> {
-        TarWriter { out: BufWriter::with_capacity(128 * 1024, w), written: 0 }
+        TarWriter {
+            out: BufWriter::with_capacity(128 * 1024, w),
+            written: 0,
+        }
     }
 
     fn write_block(&mut self, b: &[u8]) -> Result<()> {
-        self.out.write_all(b).map_err(|e| FsError::from_io(e, None))?;
+        self.out
+            .write_all(b)
+            .map_err(|e| FsError::from_io(e, None))?;
         self.written += b.len() as u64;
         Ok(())
     }
@@ -537,7 +607,11 @@ impl<W: Write> TarWriter<W> {
     }
 
     pub fn add_dir(&mut self, name: &str, mtime: i64) -> Result<()> {
-        let name = if name.ends_with('/') { name.to_string() } else { format!("{name}/") };
+        let name = if name.ends_with('/') {
+            name.to_string()
+        } else {
+            format!("{name}/")
+        };
         self.header(&name, 0, b'5', 0o755, mtime)
     }
 
@@ -572,7 +646,9 @@ impl<W: Write> TarWriter<W> {
         let mut total = 0u64;
         loop {
             cancel.check()?;
-            let n = f.read(&mut buf).map_err(|e| FsError::from_io_path(e, src))?;
+            let n = f
+                .read(&mut buf)
+                .map_err(|e| FsError::from_io_path(e, src))?;
             if n == 0 {
                 break;
             }
@@ -594,14 +670,25 @@ impl<W: Write> TarWriter<W> {
         let zeros = [0u8; BLOCK * 2];
         self.write_block(&zeros)?;
         self.out.flush().map_err(|e| FsError::from_io(e, None))?;
-        self.out.into_inner().map_err(|e| FsError::from_io(e.into_error(), None))
+        self.out
+            .into_inner()
+            .map_err(|e| FsError::from_io(e.into_error(), None))
     }
 }
 
 /// Recursively archive `root` (including the root folder itself).
-pub fn add_tree(writer: &mut TarWriter<impl Write>, root: &Path, cancel: &CancelToken) -> Result<()> {
+pub fn add_tree(
+    writer: &mut TarWriter<impl Write>,
+    root: &Path,
+    cancel: &CancelToken,
+) -> Result<()> {
     let root_name = crate::path::file_name_of(root);
-    writer.add_dir(&root_name, crate::entry::mtime_secs(&std::fs::metadata(root).map_err(|e| FsError::from_io_path(e, root))?))?;
+    writer.add_dir(
+        &root_name,
+        crate::entry::mtime_secs(
+            &std::fs::metadata(root).map_err(|e| FsError::from_io_path(e, root))?,
+        ),
+    )?;
     let mut stack: Vec<(PathBuf, String)> = vec![(root.to_path_buf(), root_name)];
     while let Some((dir, prefix)) = stack.pop() {
         cancel.check()?;
@@ -619,12 +706,19 @@ pub fn add_tree(writer: &mut TarWriter<impl Write>, root: &Path, cancel: &Cancel
                 continue; // PAX record cannot express newline in path safely here
             }
             let name = format!("{prefix}/{}", crate::path::file_name_of(&p));
-            let is_dir = std::fs::symlink_metadata(&p).map(|m| m.is_dir() && !m.file_type().is_symlink()).unwrap_or(false);
+            let is_dir = std::fs::symlink_metadata(&p)
+                .map(|m| m.is_dir() && !m.file_type().is_symlink())
+                .unwrap_or(false);
             if is_dir {
-                let mt = std::fs::metadata(&p).map(|m| crate::entry::mtime_secs(&m)).unwrap_or(0);
+                let mt = std::fs::metadata(&p)
+                    .map(|m| crate::entry::mtime_secs(&m))
+                    .unwrap_or(0);
                 writer.add_dir(&name, mt)?;
                 stack.push((p, name));
-            } else if std::fs::symlink_metadata(&p).map(|m| m.is_file()).unwrap_or(false) {
+            } else if std::fs::symlink_metadata(&p)
+                .map(|m| m.is_file())
+                .unwrap_or(false)
+            {
                 writer.add_file(&name, &p, cancel)?;
             }
         }
@@ -638,7 +732,15 @@ mod tests {
     use crate::archive::inflate_stream::DeflateEncoder;
 
     fn tmp(tag: &str) -> PathBuf {
-        let p = std::env::temp_dir().join(format!("fuss-tar-{}-{}-{}", tag, std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let p = std::env::temp_dir().join(format!(
+            "fuss-tar-{}-{}-{}",
+            tag,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         std::fs::create_dir_all(&p).unwrap();
         p
     }
@@ -668,8 +770,14 @@ mod tests {
         let r = extract_tar(&tar_path, &out, &cancel).unwrap();
         assert_eq!(r.files, 2);
         assert!(r.errors.is_empty(), "{:?}", r.errors);
-        assert_eq!(std::fs::read_to_string(out.join("src/a.txt")).unwrap(), "alpha");
-        assert_eq!(std::fs::read(out.join("src/sub/b.bin")).unwrap().len(), 5000);
+        assert_eq!(
+            std::fs::read_to_string(out.join("src/a.txt")).unwrap(),
+            "alpha"
+        );
+        assert_eq!(
+            std::fs::read(out.join("src/sub/b.bin")).unwrap().len(),
+            5000
+        );
         std::fs::remove_dir_all(&d).unwrap();
     }
 
@@ -685,7 +793,11 @@ mod tests {
         add_tree(&mut w, &src, &CancelToken::new()).unwrap();
         w.finish().unwrap();
         let listing = list_tar(&tar_path, &CancelToken::new()).unwrap();
-        assert!(listing.entries.iter().any(|e| e.path.ends_with(&long)), "{:?}", listing.entries.iter().map(|e| &e.path).collect::<Vec<_>>());
+        assert!(
+            listing.entries.iter().any(|e| e.path.ends_with(&long)),
+            "{:?}",
+            listing.entries.iter().map(|e| &e.path).collect::<Vec<_>>()
+        );
         std::fs::remove_dir_all(&d).unwrap();
     }
 
@@ -715,14 +827,25 @@ mod tests {
         let n = gunzip_to(&tgz, &gunzip_target, &cancel).unwrap();
         let raw_tar = std::fs::read(&gunzip_target).unwrap();
         assert_eq!(n, raw_tar.len() as u64, "gunzip reported size mismatch");
-        assert_eq!(raw_tar.len(), data.len(), "gunzip output size differs from original tar");
-        assert!(raw_tar[257..262].eq(b"ustar"), "gunzip output is not a tar: {:?}", &raw_tar[257..262]);
+        assert_eq!(
+            raw_tar.len(),
+            data.len(),
+            "gunzip output size differs from original tar"
+        );
+        assert!(
+            raw_tar[257..262].eq(b"ustar"),
+            "gunzip output is not a tar: {:?}",
+            &raw_tar[257..262]
+        );
         let listing = list_tar(&tgz, &cancel).unwrap();
         assert_eq!(listing.entries.len(), 4);
         let out = d.join("x");
         let r = extract_tar(&tgz, &out, &cancel).unwrap();
         assert_eq!(r.files, 2);
-        assert_eq!(std::fs::read_to_string(out.join("src/a.txt")).unwrap(), "alpha");
+        assert_eq!(
+            std::fs::read_to_string(out.join("src/a.txt")).unwrap(),
+            "alpha"
+        );
         // gunzip_to alone
         let pure = d.join("plain");
         let n = gunzip_to(&tgz, &pure, &cancel).unwrap();
@@ -738,12 +861,15 @@ mod tests {
         let mut w = TarWriter::new(File::create(&tar_path).unwrap());
         let payload = b"evil";
         // Manually write header with name ../evil.txt
-        w.header("../evil.txt", payload.len() as u64, b'0', 0o644, 0).unwrap();
+        w.header("../evil.txt", payload.len() as u64, b'0', 0o644, 0)
+            .unwrap();
         w.write_block(payload).unwrap();
         w.pad(payload.len() as u64).unwrap();
         w.finish().unwrap();
         let listing = list_tar(&tar_path, &CancelToken::new()).unwrap();
-        assert!(listing.entries.is_empty() || listing.entries.iter().all(|e| !e.path.starts_with("..")));
+        assert!(
+            listing.entries.is_empty() || listing.entries.iter().all(|e| !e.path.starts_with(".."))
+        );
         std::fs::remove_dir_all(&d).unwrap();
     }
 }

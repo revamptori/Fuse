@@ -63,7 +63,11 @@ pub struct FsError {
 
 impl FsError {
     pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
-        FsError { code, message: message.into(), path: None }
+        FsError {
+            code,
+            message: message.into(),
+            path: None,
+        }
     }
 
     pub fn with_path(mut self, path: impl Into<String>) -> Self {
@@ -114,18 +118,18 @@ impl FsError {
         };
         let code = match err.raw_os_error() {
             Some(libc_like) => match libc_like {
-                1 => ErrorCode::PermissionDenied,      // EPERM
-                2 => ErrorCode::NotFound,              // ENOENT
-                13 => ErrorCode::PermissionDenied,     // EACCES
-                17 => ErrorCode::AlreadyExists,        // EEXIST
-                18 => ErrorCode::CrossDevice,          // EXDEV
-                20 => ErrorCode::NotADirectory,        // ENOTDIR
-                21 => ErrorCode::NotADirectory,        // EISDIR
-                28 => ErrorCode::NoSpace,              // ENOSPC
-                30 => ErrorCode::ReadOnly,             // EROFS
-                36 => ErrorCode::InvalidName,          // ENAMETOOLONG
-                39 => ErrorCode::NotEmpty,             // ENOTEMPTY
-                122 => ErrorCode::NoSpace,             // EDQUOT
+                1 => ErrorCode::PermissionDenied,  // EPERM
+                2 => ErrorCode::NotFound,          // ENOENT
+                13 => ErrorCode::PermissionDenied, // EACCES
+                17 => ErrorCode::AlreadyExists,    // EEXIST
+                18 => ErrorCode::CrossDevice,      // EXDEV
+                20 => ErrorCode::NotADirectory,    // ENOTDIR
+                21 => ErrorCode::NotADirectory,    // EISDIR
+                28 => ErrorCode::NoSpace,          // ENOSPC
+                30 => ErrorCode::ReadOnly,         // EROFS
+                36 => ErrorCode::InvalidName,      // ENAMETOOLONG
+                39 => ErrorCode::NotEmpty,         // ENOTEMPTY
+                122 => ErrorCode::NoSpace,         // EDQUOT
                 _ => code,
             },
             None => code,

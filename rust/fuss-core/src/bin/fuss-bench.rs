@@ -18,13 +18,19 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 fn main() {
-    let root = std::env::args().nth(1).map(PathBuf::from).unwrap_or_else(|| std::env::temp_dir().join("fuss-bench"));
+    let root = std::env::args()
+        .nth(1)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("fuss-bench"));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("create bench dir");
     println!("fuss-bench: engine {}", fuss_core::VERSION);
     println!("workdir: {}", root.display());
     println!();
-    println!("{:<44} {:>12} {:>12} {:>10}", "operation", "median", "p90", "iterations");
+    println!(
+        "{:<44} {:>12} {:>12} {:>10}",
+        "operation", "median", "p90", "iterations"
+    );
     println!("{}", "-".repeat(82));
 
     let cancel = CancelToken::new();
@@ -45,7 +51,15 @@ fn main() {
         std::hint::black_box(l.entries[0].name.len());
     });
     bench("list 10k files + show hidden", 20, || {
-        let l = list_dir(&big, ListOptions { show_hidden: true, ..Default::default() }, &cancel).unwrap();
+        let l = list_dir(
+            &big,
+            ListOptions {
+                show_hidden: true,
+                ..Default::default()
+            },
+            &cancel,
+        )
+        .unwrap();
         std::hint::black_box(l.entries.len());
     });
 
@@ -67,7 +81,13 @@ fn main() {
     fs::create_dir_all(&small_dst).unwrap();
     bench("copy 500 x 4 KiB files", 5, || {
         for i in 0..500 {
-            copy_file(&small_src.join(format!("s{i}.bin")), &small_dst.join(format!("s{i}.bin")), CollisionMode::Overwrite, &cancel).unwrap();
+            copy_file(
+                &small_src.join(format!("s{i}.bin")),
+                &small_dst.join(format!("s{i}.bin")),
+                CollisionMode::Overwrite,
+                &cancel,
+            )
+            .unwrap();
         }
     });
 
@@ -94,7 +114,12 @@ fn main() {
 
     // Search over the 10k-file directory.
     bench("search 'file_099' in 10k", 10, || {
-        let r = fuss_core::search::search(&big, &fuss_core::search::SearchOptions::new("file_099"), &cancel).unwrap();
+        let r = fuss_core::search::search(
+            &big,
+            &fuss_core::search::SearchOptions::new("file_099"),
+            &cancel,
+        )
+        .unwrap();
         std::hint::black_box(r.entries.len());
     });
 
@@ -121,7 +146,14 @@ fn main() {
             let work = root.join("del_work");
             let _ = fs::remove_dir_all(&work);
             let mut stats = OpStats::default();
-            fuss_core::fsops::copy_recursive(&del_src, &work, CollisionMode::Fail, &cancel, &mut stats).unwrap();
+            fuss_core::fsops::copy_recursive(
+                &del_src,
+                &work,
+                CollisionMode::Fail,
+                &cancel,
+                &mut stats,
+            )
+            .unwrap();
         },
         || {
             let work = root.join("del_work");
@@ -135,12 +167,25 @@ fn main() {
     bench("cancel a 256 MiB copy", 5, || {
         let token = CancelToken::new();
         token.cancel();
-        let e = copy_file(&large, &root.join("cancel_copy.bin"), CollisionMode::Overwrite, &token);
+        let e = copy_file(
+            &large,
+            &root.join("cancel_copy.bin"),
+            CollisionMode::Overwrite,
+            &token,
+        );
         assert!(e.is_err(), "cancelled copy must fail");
     });
     // Many small JNI-style encodings (simulates one 200-entry chunk).
     {
-        let listing = list_dir(&big, ListOptions { limit: 200, ..Default::default() }, &cancel).unwrap();
+        let listing = list_dir(
+            &big,
+            ListOptions {
+                limit: 200,
+                ..Default::default()
+            },
+            &cancel,
+        )
+        .unwrap();
         bench("encode 200-entry listing chunk", 200, || {
             let mut w = fuss_core::codec::Writer::with_capacity(listing.entries.len() * 64);
             for e in &listing.entries {
@@ -174,7 +219,10 @@ fn bench_setup<P: FnMut(), F: FnMut()>(name: &str, iters: usize, mut prep: P, mu
     times.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let median = times[times.len() / 2];
     let p90 = times[(times.len() as f64 * 0.9) as usize % times.len()];
-    println!("{:<44} {:>10.2}ms {:>10.2}ms {:>10}", name, median, p90, iters);
+    println!(
+        "{:<44} {:>10.2}ms {:>10.2}ms {:>10}",
+        name, median, p90, iters
+    );
 }
 
 fn bench<F: FnMut()>(name: &str, iters: usize, mut f: F) {
@@ -189,5 +237,8 @@ fn bench<F: FnMut()>(name: &str, iters: usize, mut f: F) {
     times.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let median = times[times.len() / 2];
     let p90 = times[(times.len() as f64 * 0.9) as usize % times.len()];
-    println!("{:<44} {:>10.2}ms {:>10.2}ms {:>10}", name, median, p90, iters);
+    println!(
+        "{:<44} {:>10.2}ms {:>10.2}ms {:>10}",
+        name, median, p90, iters
+    );
 }

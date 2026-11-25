@@ -16,13 +16,19 @@ pub const MAX_NAME_BYTES: usize = 255;
 /// rename target). Rejects separators, NULs, `.`, `..`, and over-long names.
 pub fn validate_name(name: &str) -> Result<&str> {
     if name.is_empty() {
-        return Err(FsError::new(ErrorCode::InvalidName, "Name must not be empty"));
+        return Err(FsError::new(
+            ErrorCode::InvalidName,
+            "Name must not be empty",
+        ));
     }
     if name == "." || name == ".." {
         return Err(FsError::new(ErrorCode::InvalidName, "Reserved name"));
     }
     if name.contains('/') || name.contains('\0') {
-        return Err(FsError::new(ErrorCode::InvalidName, "Name must not contain '/' or NUL"));
+        return Err(FsError::new(
+            ErrorCode::InvalidName,
+            "Name must not contain '/' or NUL",
+        ));
     }
     if name.len() > MAX_NAME_BYTES {
         return Err(FsError::new(ErrorCode::InvalidName, "Name is too long"));
@@ -81,8 +87,12 @@ pub fn normalize_absolute(path: &str) -> Result<PathBuf> {
         return Err(FsError::new(ErrorCode::InvalidPath, "Empty path"));
     }
     let p = PathBuf::from(path);
-    if p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
-        return Err(FsError::new(ErrorCode::InvalidPath, "Path must not contain '..'").with_path(path));
+    if p.components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err(
+            FsError::new(ErrorCode::InvalidPath, "Path must not contain '..'").with_path(path),
+        );
     }
     Ok(p)
 }
@@ -112,12 +122,21 @@ mod tests {
 
     #[test]
     fn archive_paths_are_contained() {
-        assert_eq!(safe_archive_relative("a/b.txt"), Some(PathBuf::from("a/b.txt")));
+        assert_eq!(
+            safe_archive_relative("a/b.txt"),
+            Some(PathBuf::from("a/b.txt"))
+        );
         assert_eq!(safe_archive_relative("./a/./b"), Some(PathBuf::from("a/b")));
-        assert_eq!(safe_archive_relative("/etc/passwd"), Some(PathBuf::from("etc/passwd")));
+        assert_eq!(
+            safe_archive_relative("/etc/passwd"),
+            Some(PathBuf::from("etc/passwd"))
+        );
         assert_eq!(safe_archive_relative("a/../../b"), None);
         assert_eq!(safe_archive_relative(".."), None);
-        assert_eq!(safe_archive_relative("a\\b\\c"), Some(PathBuf::from("a/b/c")));
+        assert_eq!(
+            safe_archive_relative("a\\b\\c"),
+            Some(PathBuf::from("a/b/c"))
+        );
         assert_eq!(safe_archive_relative(""), None);
         assert_eq!(safe_archive_relative("a/b/.."), Some(PathBuf::from("a")));
     }

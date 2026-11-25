@@ -28,7 +28,6 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-
 // ---------------------------------------------------------------------------
 // Cancel handles
 // ---------------------------------------------------------------------------
@@ -191,7 +190,10 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_version(env: JNIEnv, _c: 
 /// Runs the engine self-test; returns "name=ok;name=fail" style report or
 /// throws. Used by the app's diagnostics screen and by instrumented tests.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_selfTest(env: JNIEnv, _c: JClass) -> jstring {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_selfTest(
+    env: JNIEnv,
+    _c: JClass,
+) -> jstring {
     let report = match catch_unwind(|| fuss_core::self_test()) {
         Ok(r) => r,
         Err(_) => vec![("panic".to_string(), false)],
@@ -212,28 +214,47 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_selfTest(env: JNIEnv, _c:
 // ---------------------------------------------------------------------------
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_newCancelToken(_env: JNIEnv, _c: JClass) -> jlong {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_newCancelToken(
+    _env: JNIEnv,
+    _c: JClass,
+) -> jlong {
     insert_token(CancelToken::new()) as jlong
 }
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_cancelToken(_env: JNIEnv, _c: JClass, handle: jlong) {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_cancelToken(
+    _env: JNIEnv,
+    _c: JClass,
+    handle: jlong,
+) {
     token_for(handle as u64).cancel();
 }
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_freeCancelToken(_env: JNIEnv, _c: JClass, handle: jlong) {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_freeCancelToken(
+    _env: JNIEnv,
+    _c: JClass,
+    handle: jlong,
+) {
     let mut guard = token_table().lock().unwrap_or_else(|e| e.into_inner());
     guard.retain(|(h, _)| *h != handle as u64);
 }
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_progress(_env: JNIEnv, _c: JClass, handle: jlong) -> jlong {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_progress(
+    _env: JNIEnv,
+    _c: JClass,
+    handle: jlong,
+) -> jlong {
     token_for(handle as u64).processed() as jlong
 }
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_progressTotal(_env: JNIEnv, _c: JClass, handle: jlong) -> jlong {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_progressTotal(
+    _env: JNIEnv,
+    _c: JClass,
+    handle: jlong,
+) -> jlong {
     token_for(handle as u64).total_hint() as jlong
 }
 
@@ -272,7 +293,11 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_listDir(
         };
         match list_dir(&p, opts, &token) {
             Ok(mut listing) => {
-                sort_entries(&mut listing.entries, SortKey::from_u8(sort_key as u8), ascending == JNI_TRUE);
+                sort_entries(
+                    &mut listing.entries,
+                    SortKey::from_u8(sort_key as u8),
+                    ascending == JNI_TRUE,
+                );
                 let mut w = Writer::with_capacity(listing.entries.len() * 64 + 32);
                 w.u8(if listing.has_more { 1 } else { 0 });
                 w.u32(listing.entries.len() as u32);
@@ -289,7 +314,11 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_listDir(
 
 /// Stat a single entry (used to refresh one row without re-listing).
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_statEntry(mut env: JNIEnv, _c: JClass, path: JString) -> jbyteArray {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_statEntry(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+) -> jbyteArray {
     guarded!(env, {
         let p = match path_of(&mut env, &path) {
             Some(p) => p,
@@ -311,7 +340,11 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_statEntry(mut env: JNIEnv
 // ---------------------------------------------------------------------------
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_exists(mut env: JNIEnv, _c: JClass, path: JString) -> jboolean {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_exists(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+) -> jboolean {
     match path_of(&mut env, &path) {
         Some(p) => {
             if std::fs::symlink_metadata(&p).is_ok() {
@@ -325,7 +358,11 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_exists(mut env: JNIEnv, _
 }
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_isDirectory(mut env: JNIEnv, _c: JClass, path: JString) -> jboolean {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_isDirectory(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+) -> jboolean {
     match path_of(&mut env, &path) {
         Some(p) => {
             if std::fs::metadata(&p).map(|m| m.is_dir()).unwrap_or(false) {
@@ -339,7 +376,11 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_isDirectory(mut env: JNIE
 }
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_isReadable(mut env: JNIEnv, _c: JClass, path: JString) -> jboolean {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_isReadable(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+) -> jboolean {
     match path_of(&mut env, &path) {
         Some(p) => match std::fs::read_dir(&p) {
             Ok(_) => JNI_TRUE,
@@ -350,7 +391,11 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_isReadable(mut env: JNIEn
 }
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_canonicalize(mut env: JNIEnv, _c: JClass, path: JString) -> jstring {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_canonicalize(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+) -> jstring {
     let raw = match jstr(&mut env, &path) {
         Some(s) => s,
         None => return std::ptr::null_mut(),
@@ -367,7 +412,12 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_canonicalize(mut env: JNI
 
 /// MIME type for a name; empty string means unknown.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_mimeType(mut env: JNIEnv, _c: JClass, name: JString, is_dir: jboolean) -> jstring {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_mimeType(
+    mut env: JNIEnv,
+    _c: JClass,
+    name: JString,
+    is_dir: jboolean,
+) -> jstring {
     let n = match jstr(&mut env, &name) {
         Some(s) => s,
         None => return std::ptr::null_mut(),
@@ -381,7 +431,11 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_mimeType(mut env: JNIEnv,
 
 /// Free space (bytes) available on the filesystem containing `path`.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_freeSpace(mut env: JNIEnv, _c: JClass, path: JString) -> jlong {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_freeSpace(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+) -> jlong {
     let p = match path_of(&mut env, &path) {
         Some(p) => p,
         None => return 0,
@@ -431,12 +485,20 @@ fn free_space_of(p: &std::path::Path) -> u64 {
         return 0;
     }
     let b = unsafe { buf.assume_init() };
-    b.f_bavail.saturating_mul(if b.f_frsize > 0 { b.f_frsize } else { b.f_bsize })
+    b.f_bavail.saturating_mul(if b.f_frsize > 0 {
+        b.f_frsize
+    } else {
+        b.f_bsize
+    })
 }
 
 /// Total size (bytes) of the filesystem containing `path` -- free + used.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_totalSpace(mut env: JNIEnv, _c: JClass, path: JString) -> jlong {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_totalSpace(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+) -> jlong {
     let p = match path_of(&mut env, &path) {
         Some(p) => p,
         None => return 0,
@@ -485,13 +547,20 @@ fn total_space_of(p: &std::path::Path) -> u64 {
         return 0;
     }
     let b = unsafe { buf.assume_init() };
-    b.f_blocks.saturating_mul(if b.f_frsize > 0 { b.f_frsize } else { b.f_bsize })
+    b.f_blocks.saturating_mul(if b.f_frsize > 0 {
+        b.f_frsize
+    } else {
+        b.f_bsize
+    })
 }
 
 /// Mount points (encoded: count u32, then for each: path str, fs_type str,
 /// device str, is_emulated u8). Used to offer "Internal storage" and SD cards.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_mounts(mut env: JNIEnv, _c: JClass) -> jbyteArray {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_mounts(
+    mut env: JNIEnv,
+    _c: JClass,
+) -> jbyteArray {
     guarded!(env, {
         let mounts = fuss_core::listing::mount_points();
         let mut w = Writer::with_capacity(64 + mounts.len() * 48);
@@ -537,7 +606,12 @@ fn op_result_bytes(env: &mut JNIEnv, stats: &OpStats, outputs: Vec<String>) -> j
 }
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_createFile(mut env: JNIEnv, _c: JClass, dir: JString, name: JString) -> jstring {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_createFile(
+    mut env: JNIEnv,
+    _c: JClass,
+    dir: JString,
+    name: JString,
+) -> jstring {
     let d = match path_of(&mut env, &dir) {
         Some(d) => d,
         None => return std::ptr::null_mut(),
@@ -559,7 +633,12 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_createFile(mut env: JNIEn
 }
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_createDir(mut env: JNIEnv, _c: JClass, dir: JString, name: JString) -> jstring {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_createDir(
+    mut env: JNIEnv,
+    _c: JClass,
+    dir: JString,
+    name: JString,
+) -> jstring {
     let d = match path_of(&mut env, &dir) {
         Some(d) => d,
         None => return std::ptr::null_mut(),
@@ -581,7 +660,12 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_createDir(mut env: JNIEnv
 }
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_rename(mut env: JNIEnv, _c: JClass, path: JString, new_name: JString) -> jstring {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_rename(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+    new_name: JString,
+) -> jstring {
     let p = match path_of(&mut env, &path) {
         Some(p) => p,
         None => return std::ptr::null_mut(),
@@ -677,7 +761,11 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_deleteBatch(
 /// Encodes properties: name, path, is_dir, size, modified, mode, uid, gid,
 /// inode, nlink, is_symlink, target, child_count, mime.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_properties(mut env: JNIEnv, _c: JClass, path: JString) -> jbyteArray {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_properties(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+) -> jbyteArray {
     guarded!(env, {
         let p = match path_of(&mut env, &path) {
             Some(p) => p,
@@ -709,7 +797,12 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_properties(mut env: JNIEn
 
 /// Directory size; encoded: files u64, dirs u64, bytes u64.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_dirSize(mut env: JNIEnv, _c: JClass, path: JString, cancel_handle: jlong) -> jbyteArray {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_dirSize(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+    cancel_handle: jlong,
+) -> jbyteArray {
     guarded!(env, {
         let p = match path_of(&mut env, &path) {
             Some(p) => p,
@@ -758,7 +851,11 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_search(
         let opts = SearchOptions {
             query: q,
             include_hidden: include_hidden == JNI_TRUE,
-            max_results: if max_results <= 0 { 20_000 } else { max_results as usize },
+            max_results: if max_results <= 0 {
+                20_000
+            } else {
+                max_results as usize
+            },
             ..SearchOptions::new("")
         };
         match search(&r, &opts, &token) {
@@ -785,7 +882,13 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_search(
 
 /// Largest files: count u32, then (path str, size u64, modified i64) each.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_largestFiles(mut env: JNIEnv, _c: JClass, root: JString, limit: jni::sys::jint, cancel_handle: jlong) -> jbyteArray {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_largestFiles(
+    mut env: JNIEnv,
+    _c: JClass,
+    root: JString,
+    limit: jni::sys::jint,
+    cancel_handle: jlong,
+) -> jbyteArray {
     guarded!(env, {
         let r = match path_of(&mut env, &root) {
             Some(r) => r,
@@ -810,7 +913,13 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_largestFiles(mut env: JNI
 
 /// Empty directories: count u32, then path str each.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_emptyDirs(mut env: JNIEnv, _c: JClass, root: JString, limit: jni::sys::jint, cancel_handle: jlong) -> jbyteArray {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_emptyDirs(
+    mut env: JNIEnv,
+    _c: JClass,
+    root: JString,
+    limit: jni::sys::jint,
+    cancel_handle: jlong,
+) -> jbyteArray {
     guarded!(env, {
         let r = match path_of(&mut env, &root) {
             Some(r) => r,
@@ -833,7 +942,12 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_emptyDirs(mut env: JNIEnv
 
 /// Type statistics: count u32, then (kind u8, file_count u64, bytes u64) each.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_typeStats(mut env: JNIEnv, _c: JClass, root: JString, cancel_handle: jlong) -> jbyteArray {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_typeStats(
+    mut env: JNIEnv,
+    _c: JClass,
+    root: JString,
+    cancel_handle: jlong,
+) -> jbyteArray {
     guarded!(env, {
         let r = match path_of(&mut env, &root) {
             Some(r) => r,
@@ -858,7 +972,12 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_typeStats(mut env: JNIEnv
 
 /// Duplicate groups: count u32, then (size u64, wasted u64, path_count u32, paths...).
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_duplicates(mut env: JNIEnv, _c: JClass, root: JString, cancel_handle: jlong) -> jbyteArray {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_duplicates(
+    mut env: JNIEnv,
+    _c: JClass,
+    root: JString,
+    cancel_handle: jlong,
+) -> jbyteArray {
     guarded!(env, {
         let r = match path_of(&mut env, &root) {
             Some(r) => r,
@@ -891,7 +1010,12 @@ fn g_sum_wasted(v: &[analyze::DuplicateGroup]) -> u64 {
 
 /// Per-child directory sizes: count u32, then (path str, bytes u64, files u64, dirs u64).
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_childDirSizes(mut env: JNIEnv, _c: JClass, root: JString, cancel_handle: jlong) -> jbyteArray {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_childDirSizes(
+    mut env: JNIEnv,
+    _c: JClass,
+    root: JString,
+    cancel_handle: jlong,
+) -> jbyteArray {
     guarded!(env, {
         let r = match path_of(&mut env, &root) {
             Some(r) => r,
@@ -922,7 +1046,12 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_childDirSizes(mut env: JN
 /// List archive contents: format str, total_bytes u64, count u32,
 /// then (path str, is_dir u8, size u64, modified i64, compressed u64).
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_listArchive(mut env: JNIEnv, _c: JClass, path: JString, cancel_handle: jlong) -> jbyteArray {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_listArchive(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+    cancel_handle: jlong,
+) -> jbyteArray {
     guarded!(env, {
         let p = match path_of(&mut env, &path) {
             Some(p) => p,
@@ -953,7 +1082,13 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_listArchive(mut env: JNIE
 /// Extract archive to dest: files u64, dirs u64, bytes u64, skipped u64,
 /// error_count u32, errors...
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_extractArchive(mut env: JNIEnv, _c: JClass, path: JString, dest: JString, cancel_handle: jlong) -> jbyteArray {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_extractArchive(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+    dest: JString,
+    cancel_handle: jlong,
+) -> jbyteArray {
     guarded!(env, {
         let p = match path_of(&mut env, &path) {
             Some(p) => p,
@@ -1011,7 +1146,10 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_createArchive(
             "zip" => archive::create_zip(&srcs, &out, &token),
             "tar" => archive::create_tar(&srcs, &out, false, &token),
             "tar.gz" => archive::create_tar(&srcs, &out, true, &token),
-            other => Err(FsError::new(ErrorCode::Unsupported, format!("Unsupported archive format '{other}'"))),
+            other => Err(FsError::new(
+                ErrorCode::Unsupported,
+                format!("Unsupported archive format '{other}'"),
+            )),
         };
         match res {
             Ok(n) => {
@@ -1027,7 +1165,11 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_createArchive(
 /// True if the path looks like an archive this engine can open. Used to route
 /// taps in the UI to the archive browser.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_isArchive(mut env: JNIEnv, _c: JClass, path: JString) -> jboolean {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_isArchive(
+    mut env: JNIEnv,
+    _c: JClass,
+    path: JString,
+) -> jboolean {
     let p = match path_of(&mut env, &path) {
         Some(p) => p,
         None => return JNI_FALSE,

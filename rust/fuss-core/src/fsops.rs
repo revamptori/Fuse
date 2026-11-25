@@ -103,7 +103,9 @@ fn resolve_dest(dest: &Path, mode: CollisionMode, recursion_ok: bool) -> Result<
             format!("'{}' already exists", crate::path::file_name_of(dest)),
         )),
         CollisionMode::Rename => {
-            let parent = dest.parent().ok_or_else(|| FsError::invalid_arg("Destination has no parent"))?;
+            let parent = dest
+                .parent()
+                .ok_or_else(|| FsError::invalid_arg("Destination has no parent"))?;
             let name = crate::path::file_name_of(dest);
             Ok(parent.join(unique_name(parent, &name)))
         }
@@ -148,7 +150,8 @@ pub fn copy_stream(
             Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
             Err(e) => return Err(FsError::from_io_pathless(e)),
         };
-        dst.write_all(&buf[..n]).map_err(FsError::from_io_pathless)?;
+        dst.write_all(&buf[..n])
+            .map_err(FsError::from_io_pathless)?;
         total += n as u64;
         cancel.add_processed(n as u64);
     }
@@ -180,12 +183,18 @@ pub fn copy_file(
         return copy_symlink(src, dest, mode);
     }
     if meta.is_dir() {
-        return Err(FsError::new(ErrorCode::NotADirectory, "Source is a directory").with_path(src.to_string_lossy()));
+        return Err(
+            FsError::new(ErrorCode::NotADirectory, "Source is a directory")
+                .with_path(src.to_string_lossy()),
+        );
     }
     let final_dest = resolve_dest(dest, mode, false)?;
     if final_dest.exists() && !final_dest.is_file() {
-        return Err(FsError::new(ErrorCode::NotADirectory, "Destination is not a regular file")
-            .with_path(final_dest.to_string_lossy()));
+        return Err(FsError::new(
+            ErrorCode::NotADirectory,
+            "Destination is not a regular file",
+        )
+        .with_path(final_dest.to_string_lossy()));
     }
     let tmp = temp_sibling(&final_dest);
     let mut src_file = open_src(src)?;
@@ -247,8 +256,17 @@ pub fn set_file_times(path: &Path, t: std::time::SystemTime) {
         Ok(d) => d,
         Err(_) => return,
     };
-    let ts = Timespec { tv_sec: d.as_secs() as i64, tv_nsec: d.subsec_nanos() as i64 };
-    let times = [Timespec { tv_sec: ts.tv_sec, tv_nsec: ts.tv_nsec }, ts];
+    let ts = Timespec {
+        tv_sec: d.as_secs() as i64,
+        tv_nsec: d.subsec_nanos() as i64,
+    };
+    let times = [
+        Timespec {
+            tv_sec: ts.tv_sec,
+            tv_nsec: ts.tv_nsec,
+        },
+        ts,
+    ];
     // utimensat needs UTIME_OMIT etc; futimens on an fd is simpler and works on
     // both Android (bionic) and the Linux host used for tests.
     let file = match File::options().write(true).open(path) {
@@ -267,7 +285,15 @@ pub fn set_file_times(path: &Path, t: std::time::SystemTime) {
 pub fn copy_symlink(src: &Path, dest: &Path, mode: CollisionMode) -> Result<PathBuf> {
     use std::os::unix::fs::symlink;
     let target = fs::read_link(src).map_err(|e| FsError::from_io_path(e, src))?;
-    let final_dest = resolve_dest(dest, if mode == CollisionMode::Fail { CollisionMode::Fail } else { CollisionMode::Rename }, false)?;
+    let final_dest = resolve_dest(
+        dest,
+        if mode == CollisionMode::Fail {
+            CollisionMode::Fail
+        } else {
+            CollisionMode::Rename
+        },
+        false,
+    )?;
     let _ = fs::remove_file(&final_dest);
     symlink(&target, &final_dest).map_err(|e| FsError::from_io_path(e, &final_dest))?;
     Ok(final_dest)
@@ -317,7 +343,13 @@ pub fn copy_recursive(
         };
         let child_src = item.path();
         let child_dest = final_dest.join(item.file_name());
-        match copy_recursive(&child_src, &child_dest, CollisionMode::Overwrite, cancel, stats) {
+        match copy_recursive(
+            &child_src,
+            &child_dest,
+            CollisionMode::Overwrite,
+            cancel,
+            stats,
+        ) {
             Ok(_) => {}
             Err(e) if e.code == ErrorCode::Cancelled => return Err(e),
             Err(e) => stats.record_err(e),
@@ -493,8 +525,11 @@ pub fn rename_path(path: &Path, new_name: &str) -> Result<PathBuf> {
         return Ok(dest);
     }
     if fs::symlink_metadata(&dest).is_ok() {
-        return Err(FsError::new(ErrorCode::AlreadyExists, "An item with that name already exists")
-            .with_path(dest.to_string_lossy()));
+        return Err(FsError::new(
+            ErrorCode::AlreadyExists,
+            "An item with that name already exists",
+        )
+        .with_path(dest.to_string_lossy()));
     }
     fs::rename(path, &dest).map_err(|e| FsError::from_io_path(e, path))?;
     Ok(dest)
@@ -532,7 +567,9 @@ pub fn properties(path: &Path, include_children: bool) -> Result<Properties> {
         0
     };
     let symlink_target = if meta.file_type().is_symlink() {
-        fs::read_link(path).ok().map(|p| p.to_string_lossy().into_owned())
+        fs::read_link(path)
+            .ok()
+            .map(|p| p.to_string_lossy().into_owned())
     } else {
         None
     };
@@ -572,7 +609,11 @@ pub fn properties(path: &Path, include_children: bool) -> Result<Properties> {
         hard_links: 1,
         is_symlink: meta.file_type().is_symlink(),
         symlink_target: None,
-        child_count: if is_dir && include_children { fs::read_dir(path).map(|r| r.count() as u64).unwrap_or(0) } else { 0 },
+        child_count: if is_dir && include_children {
+            fs::read_dir(path).map(|r| r.count() as u64).unwrap_or(0)
+        } else {
+            0
+        },
         mime: crate::ext::mime_type(&name, is_dir).to_string(),
     })
 }
@@ -580,7 +621,10 @@ pub fn properties(path: &Path, include_children: bool) -> Result<Properties> {
 /// Entry for a single path (used when the UI needs to refresh one item).
 pub fn stat_entry(path: &Path) -> Result<Entry> {
     let meta = fs::symlink_metadata(path).map_err(|e| FsError::from_io_path(e, path))?;
-    Ok(Entry::from_parts(crate::path::file_name_of(path), Some(&meta)))
+    Ok(Entry::from_parts(
+        crate::path::file_name_of(path),
+        Some(&meta),
+    ))
 }
 
 /// Batch operation result: per-item errors are collected, not fatal.
@@ -612,11 +656,12 @@ pub fn copy_batch(
         let mut dest = dest_dir.join(&name);
         // Collision policy applies within the batch too: copying two files with
         // the same name must not silently keep only one.
-        let effective_mode = if multi && fs::symlink_metadata(&dest).is_ok() && mode == CollisionMode::Fail {
-            CollisionMode::Rename
-        } else {
-            mode
-        };
+        let effective_mode =
+            if multi && fs::symlink_metadata(&dest).is_ok() && mode == CollisionMode::Fail {
+                CollisionMode::Rename
+            } else {
+                mode
+            };
         match copy_recursive(src, &dest, effective_mode, &cancel, &mut out.stats) {
             Ok(p) => {
                 dest = p;
@@ -694,7 +739,15 @@ mod tests {
     use super::*;
 
     fn tmpdir(tag: &str) -> PathBuf {
-        let p = std::env::temp_dir().join(format!("fuss-test-{}-{}-{}", tag, std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let p = std::env::temp_dir().join(format!(
+            "fuss-test-{}-{}-{}",
+            tag,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         fs::create_dir_all(&p).unwrap();
         p
     }
@@ -705,16 +758,45 @@ mod tests {
         let f = create_file(&root, "a.txt").unwrap();
         fs::write(&f, b"hello world").unwrap();
         let sub = create_dir(&root, "sub").unwrap();
-        let c = copy_file(&f, &sub.join("a.txt"), CollisionMode::Fail, &CancelToken::new()).unwrap();
+        let c = copy_file(
+            &f,
+            &sub.join("a.txt"),
+            CollisionMode::Fail,
+            &CancelToken::new(),
+        )
+        .unwrap();
         assert_eq!(fs::read(&c).unwrap(), b"hello world");
         // Same-dir copy with collision must fail by default
-        assert_eq!(copy_file(&f, &sub.join("a.txt"), CollisionMode::Fail, &CancelToken::new()).unwrap_err().code, ErrorCode::AlreadyExists);
+        assert_eq!(
+            copy_file(
+                &f,
+                &sub.join("a.txt"),
+                CollisionMode::Fail,
+                &CancelToken::new()
+            )
+            .unwrap_err()
+            .code,
+            ErrorCode::AlreadyExists
+        );
         // Rename mode picks "a (1).txt"
-        let c2 = copy_file(&f, &sub.join("a.txt"), CollisionMode::Rename, &CancelToken::new()).unwrap();
+        let c2 = copy_file(
+            &f,
+            &sub.join("a.txt"),
+            CollisionMode::Rename,
+            &CancelToken::new(),
+        )
+        .unwrap();
         assert_eq!(c2.file_name().unwrap(), "a (1).txt");
         let renamed = rename_path(&c2, "b.txt").unwrap();
         assert!(renamed.exists());
-        let moved = move_path(&f, &sub.join("moved.txt"), CollisionMode::Fail, &CancelToken::new(), &mut OpStats::default()).unwrap();
+        let moved = move_path(
+            &f,
+            &sub.join("moved.txt"),
+            CollisionMode::Fail,
+            &CancelToken::new(),
+            &mut OpStats::default(),
+        )
+        .unwrap();
         assert!(moved.exists() && !f.exists());
         delete_path(&sub, &CancelToken::new(), &mut OpStats::default()).unwrap();
         assert!(!sub.exists());
@@ -726,12 +808,25 @@ mod tests {
         let root = tmpdir("rec");
         let src = root.join("src");
         fs::create_dir_all(src.join("d1/d2")).unwrap();
-        File::create(src.join("d1/x.bin")).unwrap().write_all(&[7u8; 300_000]).unwrap();
+        File::create(src.join("d1/x.bin"))
+            .unwrap()
+            .write_all(&[7u8; 300_000])
+            .unwrap();
         fs::write(src.join("d1/d2/y.txt"), "y").unwrap();
         let mut stats = OpStats::default();
-        copy_recursive(&src, &root.join("dst"), CollisionMode::Fail, &CancelToken::new(), &mut stats).unwrap();
+        copy_recursive(
+            &src,
+            &root.join("dst"),
+            CollisionMode::Fail,
+            &CancelToken::new(),
+            &mut stats,
+        )
+        .unwrap();
         assert_eq!(fs::read(root.join("dst/d1/x.bin")).unwrap().len(), 300_000);
-        assert_eq!(fs::read_to_string(root.join("dst/d1/d2/y.txt")).unwrap(), "y");
+        assert_eq!(
+            fs::read_to_string(root.join("dst/d1/d2/y.txt")).unwrap(),
+            "y"
+        );
         assert_eq!(stats.files, 2);
         delete_path(&src, &CancelToken::new(), &mut OpStats::default()).unwrap();
         assert!(!src.exists());
@@ -744,7 +839,14 @@ mod tests {
         let src = root.join("a");
         fs::create_dir_all(&src).unwrap();
         let mut stats = OpStats::default();
-        let err = copy_recursive(&src, &src.join("inner"), CollisionMode::Fail, &CancelToken::new(), &mut stats).unwrap_err();
+        let err = copy_recursive(
+            &src,
+            &src.join("inner"),
+            CollisionMode::Fail,
+            &CancelToken::new(),
+            &mut stats,
+        )
+        .unwrap_err();
         assert_eq!(err.code, ErrorCode::InvalidArgument);
         fs::remove_dir_all(&root).unwrap();
     }
@@ -753,13 +855,20 @@ mod tests {
     fn cancellation_leaves_no_temp_file() {
         let root = tmpdir("cancel");
         let f = root.join("big.bin");
-        File::create(&f).unwrap().write_all(&vec![0u8; 300_000]).unwrap();
+        File::create(&f)
+            .unwrap()
+            .write_all(&vec![0u8; 300_000])
+            .unwrap();
         let token = CancelToken::new();
         token.cancel();
         let err = copy_file(&f, &root.join("out.bin"), CollisionMode::Fail, &token).unwrap_err();
         assert_eq!(err.code, ErrorCode::Cancelled);
         assert!(!root.join("out.bin").exists());
-        let leftovers: Vec<_> = fs::read_dir(&root).unwrap().filter_map(|e| e.ok()).filter(|e| e.file_name().to_string_lossy().contains("fuss-")).collect();
+        let leftovers: Vec<_> = fs::read_dir(&root)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains("fuss-"))
+            .collect();
         assert!(leftovers.is_empty());
         fs::remove_dir_all(&root).unwrap();
     }
@@ -767,7 +876,8 @@ mod tests {
     #[test]
     fn overwrite_replaces_content() {
         let root = tmpdir("ow");
-        let a = root.join("a"); let b = root.join("b");
+        let a = root.join("a");
+        let b = root.join("b");
         fs::write(&a, b"AAAAAAAAAA").unwrap();
         fs::write(&b, b"BB").unwrap();
         copy_file(&a, &b, CollisionMode::Overwrite, &CancelToken::new()).unwrap();
@@ -778,11 +888,20 @@ mod tests {
     #[test]
     fn batch_copy_collects_errors_and_renames_duplicates() {
         let root = tmpdir("batch");
-        let src1 = root.join("s1"); let src2 = root.join("s2"); let out = root.join("out");
-        fs::create_dir_all(&src1).unwrap(); fs::create_dir_all(&src2).unwrap(); fs::create_dir_all(&out).unwrap();
+        let src1 = root.join("s1");
+        let src2 = root.join("s2");
+        let out = root.join("out");
+        fs::create_dir_all(&src1).unwrap();
+        fs::create_dir_all(&src2).unwrap();
+        fs::create_dir_all(&out).unwrap();
         fs::write(src1.join("same.txt"), "1").unwrap();
         fs::write(src2.join("same.txt"), "2").unwrap();
-        let r = copy_batch(&[src1.join("same.txt"), src2.join("same.txt")], &out, CollisionMode::Fail, CancelToken::new());
+        let r = copy_batch(
+            &[src1.join("same.txt"), src2.join("same.txt")],
+            &out,
+            CollisionMode::Fail,
+            CancelToken::new(),
+        );
         assert_eq!(r.stats.errors, 0);
         assert_eq!(r.outputs.len(), 2);
         assert!(out.join("same.txt").exists());

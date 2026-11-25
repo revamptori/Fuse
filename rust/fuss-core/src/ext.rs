@@ -73,10 +73,10 @@ pub fn classify_name(name: &str, is_dir: bool) -> FileKind {
     match ext.as_str() {
         "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp" | "heic" | "heif" | "avif" | "tif"
         | "tiff" | "svg" | "ico" | "raw" | "dng" | "cr2" | "nef" | "arw" | "orf" => FileKind::Image,
-        "mp4" | "m4v" | "mkv" | "webm" | "avi" | "mov" | "3gp" | "wmv" | "flv" | "mpg"
-        | "mpeg" | "ts" | "m2ts" => FileKind::Video,
-        "mp3" | "m4a" | "aac" | "ogg" | "oga" | "opus" | "flac" | "wav" | "wma" | "amr"
-        | "mid" | "midi" | "aiff" | "aif" | "ape" | "mka" => FileKind::Audio,
+        "mp4" | "m4v" | "mkv" | "webm" | "avi" | "mov" | "3gp" | "wmv" | "flv" | "mpg" | "mpeg"
+        | "ts" | "m2ts" => FileKind::Video,
+        "mp3" | "m4a" | "aac" | "ogg" | "oga" | "opus" | "flac" | "wav" | "wma" | "amr" | "mid"
+        | "midi" | "aiff" | "aif" | "ape" | "mka" => FileKind::Audio,
         "txt" | "log" | "md" | "markdown" | "nfo" | "srt" | "vtt" | "ass" | "rtf" | "ini"
         | "conf" | "cfg" | "properties" => FileKind::Text,
         "pdf" => FileKind::Pdf,
@@ -86,11 +86,11 @@ pub fn classify_name(name: &str, is_dir: bool) -> FileKind {
         "zip" | "rar" | "7z" | "tar" | "gz" | "tgz" | "bz2" | "tbz2" | "xz" | "txz" | "zst"
         | "lz4" | "lzma" | "jar" | "war" | "iso" | "cab" | "zipx" => FileKind::Archive,
         "apk" | "apks" | "xapk" | "aab" => FileKind::Apk,
-        "rs" | "kt" | "kts" | "java" | "c" | "h" | "cc" | "cpp" | "hpp" | "py" | "js"
-        | "tsx" | "jsx" | "go" | "rb" | "php" | "swift" | "sh" | "bash" | "zsh" | "fish"
-        | "lua" | "pl" | "sql" | "json" | "yaml" | "yml" | "xml" | "html" | "htm" | "css"
-        | "scss" | "toml" | "gradle" | "makefile" | "cmake" | "asm" | "s" | "dart" | "ex"
-        | "exs" | "erl" | "hs" | "ml" | "scala" | "clj" | "vim" => FileKind::Code,
+        "rs" | "kt" | "kts" | "java" | "c" | "h" | "cc" | "cpp" | "hpp" | "py" | "js" | "tsx"
+        | "jsx" | "go" | "rb" | "php" | "swift" | "sh" | "bash" | "zsh" | "fish" | "lua" | "pl"
+        | "sql" | "json" | "yaml" | "yml" | "xml" | "html" | "htm" | "css" | "scss" | "toml"
+        | "gradle" | "makefile" | "cmake" | "asm" | "s" | "dart" | "ex" | "exs" | "erl" | "hs"
+        | "ml" | "scala" | "clj" | "vim" => FileKind::Code,
         "ttf" | "otf" | "woff" | "woff2" => FileKind::Font,
         _ => FileKind::Other,
     }

@@ -25,7 +25,9 @@ const MAX_RECENT: usize = 30;
 const MAX_FAVORITES: usize = 100;
 
 fn escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('\t', "\\t").replace('\n', "\\n")
+    s.replace('\\', "\\\\")
+        .replace('\t', "\\t")
+        .replace('\n', "\\n")
 }
 
 fn unescape(s: &str) -> String {
@@ -143,7 +145,10 @@ impl Prefs {
 
     pub fn add_bookmark(&mut self, label: &str, path: &str) {
         self.bookmarks.retain(|b| b.path != path);
-        self.bookmarks.push(Bookmark { label: label.to_string(), path: path.to_string() });
+        self.bookmarks.push(Bookmark {
+            label: label.to_string(),
+            path: path.to_string(),
+        });
     }
 
     pub fn remove_bookmark(&mut self, path: &str) {
