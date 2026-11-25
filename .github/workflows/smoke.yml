@@ -1,0 +1,17 @@
+name: smoke
+on:
+  push:
+    branches: ["arena/5a35d0f9-fuse"]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          echo "runner ok"; uname -a
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/ndk" 2>/dev/null || true
+          java -version
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo --version && rustc --version
