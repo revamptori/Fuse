@@ -1252,19 +1252,80 @@ mod tests {
         assert_eq!(inner.u64(), Some(7));
     }
 }
-
 // ---------------------------------------------------------------------------
 // Symbol registration
 // ---------------------------------------------------------------------------
 
-/// `JNI_OnLoad` registers every binding through `RegisterNatives`. Relying on the
-/// symbolic `Java_<pkg>_<class>_<method>` lookup would bind the *instance*
-/// receiver that Kotlin objects pass to a method that declares a class
-/// receiver; registering explicitly makes the match exact and fails loudly at
-/// library load instead of at the first call.
-///
-/// The table below is the single source of truth: it is checked against the
-/// exported functions by a host test.
+// Every binding appears exactly once, as `function => JNI descriptor`. The same
+// list both feeds `RegisterNatives` and the test that compares the surface with
+// `FussNative.kt`, so the two can never drift.
+macro_rules! jni_bindings {
+    ($($func:ident => $sig:literal),* $(,)?) => {
+        /// `Java_cloud_fuss_core_FussNative_x` -> `x`.
+        fn method_name(full: &'static str) -> &'static str {
+            full.rsplit("FussNative_").next().unwrap_or(full)
+        }
+
+        /// The registered (name, signature) pairs, for tests and diagnostics.
+        pub fn jni_signatures() -> Vec<(&'static str, &'static str)> {
+            vec![$((method_name(stringify!($func)), $sig)),*]
+        }
+
+        fn native_methods() -> Vec<NativeMethod> {
+            vec![$(
+                NativeMethod {
+                    name: JNIString::from(method_name(stringify!($func))),
+                    sig: JNIString::from($sig),
+                    fn_ptr: $func as *mut std::ffi::c_void,
+                }
+            ),*]
+        }
+    };
+}
+
+jni_bindings! {
+    Java_cloud_fuss_core_FussNative_version => "()Ljava/lang/String;",
+    Java_cloud_fuss_core_FussNative_selfTest => "()Ljava/lang/String;",
+    Java_cloud_fuss_core_FussNative_newCancelToken => "()J",
+    Java_cloud_fuss_core_FussNative_cancelToken => "(J)V",
+    Java_cloud_fuss_core_FussNative_freeCancelToken => "(J)V",
+    Java_cloud_fuss_core_FussNative_progress => "(J)J",
+    Java_cloud_fuss_core_FussNative_progressTotal => "(J)J",
+    Java_cloud_fuss_core_FussNative_listDir => "(Ljava/lang/String;ZIZII)[B",
+    Java_cloud_fuss_core_FussNative_statEntry => "(Ljava/lang/String;)[B",
+    Java_cloud_fuss_core_FussNative_exists => "(Ljava/lang/String;)Z",
+    Java_cloud_fuss_core_FussNative_isDirectory => "(Ljava/lang/String;)Z",
+    Java_cloud_fuss_core_FussNative_isReadable => "(Ljava/lang/String;)Z",
+    Java_cloud_fuss_core_FussNative_canonicalize => "(Ljava/lang/String;)Ljava/lang/String;",
+    Java_cloud_fuss_core_FussNative_mimeType => "(Ljava/lang/String;Z)Ljava/lang/String;",
+    Java_cloud_fuss_core_FussNative_freeSpace => "(Ljava/lang/String;)J",
+    Java_cloud_fuss_core_FussNative_totalSpace => "(Ljava/lang/String;)J",
+    Java_cloud_fuss_core_FussNative_mounts => "()[B",
+    Java_cloud_fuss_core_FussNative_createFile => "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+    Java_cloud_fuss_core_FussNative_createDir => "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+    Java_cloud_fuss_core_FussNative_rename => "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+    Java_cloud_fuss_core_FussNative_copyBatch => "([Ljava/lang/String;Ljava/lang/String;IJ)[B",
+    Java_cloud_fuss_core_FussNative_moveBatch => "([Ljava/lang/String;Ljava/lang/String;IJ)[B",
+    Java_cloud_fuss_core_FussNative_deleteBatch => "([Ljava/lang/String;J)[B",
+    Java_cloud_fuss_core_FussNative_properties => "(Ljava/lang/String;)[B",
+    Java_cloud_fuss_core_FussNative_dirSize => "(Ljava/lang/String;J)[B",
+    Java_cloud_fuss_core_FussNative_search => "(Ljava/lang/String;Ljava/lang/String;ZIJ)[B",
+    Java_cloud_fuss_core_FussNative_largestFiles => "(Ljava/lang/String;IJ)[B",
+    Java_cloud_fuss_core_FussNative_emptyDirs => "(Ljava/lang/String;IJ)[B",
+    Java_cloud_fuss_core_FussNative_typeStats => "(Ljava/lang/String;J)[B",
+    Java_cloud_fuss_core_FussNative_duplicates => "(Ljava/lang/String;J)[B",
+    Java_cloud_fuss_core_FussNative_childDirSizes => "(Ljava/lang/String;J)[B",
+    Java_cloud_fuss_core_FussNative_listArchive => "(Ljava/lang/String;J)[B",
+    Java_cloud_fuss_core_FussNative_extractArchive => "(Ljava/lang/String;Ljava/lang/String;J)[B",
+    Java_cloud_fuss_core_FussNative_createArchive => "([Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)[B",
+    Java_cloud_fuss_core_FussNative_isArchive => "(Ljava/lang/String;)Z",
+}
+
+/// Registers every binding explicitly. Kotlin's `FussNative` is an `object`, so
+/// its `external fun`s are *instance* methods and JNI passes the singleton as
+/// the receiver. The symbolic `Java_...` lookup assumes a static receiver and
+/// would fail at the first call on a device; registering here makes the contract
+/// explicit and verifiable.
 #[no_mangle]
 pub extern "system" fn JNI_OnLoad(
     vm: jni::JavaVM,
@@ -1278,362 +1339,18 @@ pub extern "system" fn JNI_OnLoad(
         Ok(c) => c,
         Err(_) => return jni::sys::JNI_ERR,
     };
-    // Every binding has the same receiver shape (env, object, args...) but a
-    // different return type, so the table is built from raw function pointers.
-    let methods: Vec<NativeMethod> = vec![
-        NativeMethod {
-            name: JNIString::from("version"),
-            sig: JNIString::from("()Ljava/lang/String;"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_version as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("selfTest"),
-            sig: JNIString::from("()Ljava/lang/String;"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_selfTest as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("newCancelToken"),
-            sig: JNIString::from("()J"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_newCancelToken as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("cancelToken"),
-            sig: JNIString::from("(J)V"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_cancelToken as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("freeCancelToken"),
-            sig: JNIString::from("(J)V"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_freeCancelToken as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("progress"),
-            sig: JNIString::from("(J)J"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_progress as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("progressTotal"),
-            sig: JNIString::from("(J)J"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_progressTotal as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("listDir"),
-            sig: JNIString::from("(Ljava/lang/String;ZIZII)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_listDir as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("statEntry"),
-            sig: JNIString::from("(Ljava/lang/String;)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_statEntry as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("exists"),
-            sig: JNIString::from("(Ljava/lang/String;)Z"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_exists as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("isDirectory"),
-            sig: JNIString::from("(Ljava/lang/String;)Z"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_isDirectory as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("isReadable"),
-            sig: JNIString::from("(Ljava/lang/String;)Z"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_isReadable as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("canonicalize"),
-            sig: JNIString::from("(Ljava/lang/String;)Ljava/lang/String;"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_canonicalize as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("mimeType"),
-            sig: JNIString::from("(Ljava/lang/String;Z)Ljava/lang/String;"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_mimeType as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("freeSpace"),
-            sig: JNIString::from("(Ljava/lang/String;)J"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_freeSpace as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("totalSpace"),
-            sig: JNIString::from("(Ljava/lang/String;)J"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_totalSpace as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("mounts"),
-            sig: JNIString::from("()[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_mounts as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("createFile"),
-            sig: JNIString::from("(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_createFile as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("createDir"),
-            sig: JNIString::from("(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_createDir as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("rename"),
-            sig: JNIString::from("(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_rename as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("copyBatch"),
-            sig: JNIString::from("([Ljava/lang/String;Ljava/lang/String;IJ)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_copyBatch as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("moveBatch"),
-            sig: JNIString::from("([Ljava/lang/String;Ljava/lang/String;IJ)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_moveBatch as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("deleteBatch"),
-            sig: JNIString::from("([Ljava/lang/String;J)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_deleteBatch as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("properties"),
-            sig: JNIString::from("(Ljava/lang/String;)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_properties as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("dirSize"),
-            sig: JNIString::from("(Ljava/lang/String;J)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_dirSize as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("search"),
-            sig: JNIString::from("(Ljava/lang/String;Ljava/lang/String;ZIJ)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_search as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("largestFiles"),
-            sig: JNIString::from("(Ljava/lang/String;IJ)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_largestFiles as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("emptyDirs"),
-            sig: JNIString::from("(Ljava/lang/String;IJ)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_emptyDirs as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("typeStats"),
-            sig: JNIString::from("(Ljava/lang/String;J)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_typeStats as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("duplicates"),
-            sig: JNIString::from("(Ljava/lang/String;J)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_duplicates as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("childDirSizes"),
-            sig: JNIString::from("(Ljava/lang/String;J)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_childDirSizes as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("listArchive"),
-            sig: JNIString::from("(Ljava/lang/String;J)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_listArchive as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("extractArchive"),
-            sig: JNIString::from("(Ljava/lang/String;Ljava/lang/String;J)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_extractArchive as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("createArchive"),
-            sig: JNIString::from("([Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)[B"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_createArchive as *mut std::ffi::c_void,
-        },
-        NativeMethod {
-            name: JNIString::from("isArchive"),
-            sig: JNIString::from("(Ljava/lang/String;)Z"),
-            fn_ptr: Java_cloud_fuss_core_FussNative_isArchive as *mut std::ffi::c_void,
-        },
-    ];
-    // SAFETY: every pointer comes from a `#[no_mangle] extern "system"` binding
-    // with a compatible signature, and the names are static.
-    match env.register_native_methods(class, &methods) {
+    // SAFETY: `jni_signatures` and `native_methods` are generated from the same
+    // macro invocation, and every function has the `extern "system"` shape the
+    // descriptors describe.
+    match env.register_native_methods(class, &native_methods()) {
         Ok(()) => jni::sys::JNI_VERSION_1_6,
         Err(_) => jni::sys::JNI_ERR,
     }
 }
 
-/// Registered JNI names, in table order.
-#[cfg(test)]
-pub fn binding_names() -> Vec<&'static str> {
-    vec![
-        "version",
-        "selfTest",
-        "newCancelToken",
-        "cancelToken",
-        "freeCancelToken",
-        "progress",
-        "progressTotal",
-        "listDir",
-        "statEntry",
-        "exists",
-        "isDirectory",
-        "isReadable",
-        "canonicalize",
-        "mimeType",
-        "freeSpace",
-        "totalSpace",
-        "mounts",
-        "createFile",
-        "createDir",
-        "rename",
-        "copyBatch",
-        "moveBatch",
-        "deleteBatch",
-        "properties",
-        "dirSize",
-        "search",
-        "largestFiles",
-        "emptyDirs",
-        "typeStats",
-        "duplicates",
-        "childDirSizes",
-        "listArchive",
-        "extractArchive",
-        "createArchive",
-        "isArchive",
-    ]
-}
-
-/// Registered JNI signatures, in table order. Kept beside the table so a test
-/// can assert both are in sync and in the same order.
-#[cfg(test)]
-pub fn jni_signatures() -> Vec<&'static str> {
-    vec![
-        "()Ljava/lang/String;",
-        "()Ljava/lang/String;",
-        "()J",
-        "(J)V",
-        "(J)V",
-        "(J)J",
-        "(J)J",
-        "(Ljava/lang/String;ZIZII)[B",
-        "(Ljava/lang/String;)[B",
-        "(Ljava/lang/String;)Z",
-        "(Ljava/lang/String;)Z",
-        "(Ljava/lang/String;)Z",
-        "(Ljava/lang/String;)Ljava/lang/String;",
-        "(Ljava/lang/String;Z)Ljava/lang/String;",
-        "(Ljava/lang/String;)J",
-        "(Ljava/lang/String;)J",
-        "()[B",
-        "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
-        "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
-        "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
-        "([Ljava/lang/String;Ljava/lang/String;IJ)[B",
-        "([Ljava/lang/String;Ljava/lang/String;IJ)[B",
-        "([Ljava/lang/String;J)[B",
-        "(Ljava/lang/String;)[B",
-        "(Ljava/lang/String;J)[B",
-        "(Ljava/lang/String;Ljava/lang/String;ZIJ)[B",
-        "(Ljava/lang/String;IJ)[B",
-        "(Ljava/lang/String;IJ)[B",
-        "(Ljava/lang/String;J)[B",
-        "(Ljava/lang/String;J)[B",
-        "(Ljava/lang/String;J)[B",
-        "(Ljava/lang/String;J)[B",
-        "(Ljava/lang/String;Ljava/lang/String;J)[B",
-        "([Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)[B",
-        "(Ljava/lang/String;)Z",
-    ]
-}
-
-/// Names as the table lists them, re-derived from the table's own text: the
-/// ordering check in the tests compares that against `binding_names()`.
-#[cfg(test)]
-pub fn registration_names() -> Vec<&'static str> {
-    let src = include_str!("lib.rs");
-    let mut out = Vec::new();
-    for line in src.lines() {
-        let line = line.trim();
-        if let Some(rest) = line.strip_prefix("NativeMethod { name: JNIString::from(\"") {
-            out.push(&rest[..rest.find('"').unwrap()]);
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod registration_tests {
-
-    /// The registration table must agree with the Kotlin declarations: same
-    /// names in the same order, and each signature must describe exactly the
-    /// Kotlin parameter/return types. Kotlin `object` members are *instance*
-    /// methods, so the receiver is an object (`JObject`), never a `JClass`.
-    ///
-    /// Signatures are parsed out of the table source with a naive splitter on
-    /// purpose: the point is to catch a binding whose declared shape drifted
-    /// from what `FussNative.kt` says, not to reimplement a JNI type parser.
-    #[test]
-    fn registration_matches_kotlin_declarations() {
-        let table = parse_table_from_source(include_str!("lib.rs"));
-        let kotlin = parse_kotlin_declarations(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../android/app/src/main/java/cloud/fuss/core/FussNative.kt"
-        )));
-        assert!(
-            kotlin.len() >= 30,
-            "expected the full Kotlin surface, parsed {} declarations",
-            kotlin.len()
-        );
-        assert_eq!(
-            table.len(),
-            kotlin.len(),
-            "table has {} entries, Kotlin declares {}",
-            table.len(),
-            kotlin.len()
-        );
-        for ((tn, ts), (kn, ks)) in table.iter().zip(kotlin.iter()) {
-            assert_eq!(tn, kn, "name/order mismatch");
-            assert_eq!(ts, ks, "signature mismatch for {kn}");
-        }
-    }
-
-    /// Every signature string must be well formed and receiver-free.
-    #[test]
-    fn signatures_are_instance_style() {
-        for (name, sig) in parse_table_from_source(include_str!("lib.rs")) {
-            assert!(
-                sig.starts_with('('),
-                "{name}: signature must start with '('"
-            );
-            assert!(
-                sig.ends_with(')') || sig.contains(")"),
-                "{name}: unbalanced signature {sig}"
-            );
-            assert!(
-                !sig.starts_with("(Lcloud"),
-                "{name}: looks like a static (class receiver) signature"
-            );
-            assert!(sig.len() < 128, "{name}: signature implausibly long");
-        }
-    }
-
-    fn jni_type(kotlin: &str) -> Option<&'static str> {
-        Some(match kotlin.trim() {
-            "String" | "String?" => "Ljava/lang/String;",
-            "Long" => "J",
-            "Int" => "I",
-            "Boolean" => "Z",
-            "ByteArray?" | "ByteArray" => "[B",
-            "Array<String>" => "[Ljava/lang/String;",
-            "Unit" => "V",
-            _ => return None,
-        })
-    }
-
+    use super::jni_signatures;
     /// (name, JNI descriptor) for each `external fun` in FussNative.kt.
     pub(super) fn parse_kotlin_declarations(src: &str) -> Vec<(String, String)> {
         let mut out = Vec::new();
@@ -1671,9 +1388,25 @@ mod registration_tests {
         out
     }
 
+
+    fn jni_type(kotlin: &str) -> Option<&'static str> {
+        Some(match kotlin.trim() {
+            "String" | "String?" => "Ljava/lang/String;",
+            "Long" => "J",
+            "Int" => "I",
+            "Boolean" => "Z",
+            "ByteArray?" | "ByteArray" => "[B",
+            "Array<String>" => "[Ljava/lang/String;",
+            "Unit" => "V",
+            _ => return None,
+        })
+    }
+
+
     fn balanced(s: &str) -> bool {
         s.matches('(').count() == s.matches(')').count()
     }
+
 
     fn matching_paren(s: &str) -> usize {
         let mut depth = 0;
@@ -1692,35 +1425,63 @@ mod registration_tests {
         panic!("unbalanced declaration: {s}");
     }
 
-    /// (name, descriptor) pairs from the `NativeMethod { ... }` table.
-    pub(super) fn parse_table_from_source(src: &str) -> Vec<(String, String)> {
-        // rustfmt is free to spread each `NativeMethod { .. }` entry over several
-        // lines, so search the tokens rather than whole lines.
-        let name_mark = "name: JNIString::from(";
-        let sig_mark = "sig: JNIString::from(";
-        let mut out = Vec::new();
-        let mut rest = src;
-        while let Some(pos) = rest.find(name_mark) {
-            rest = &rest[pos + name_mark.len()..];
-            let name = quoted(rest);
-            let Some(sig_pos) = rest.find(sig_mark) else { break };
-            let sig = quoted(&rest[sig_pos + sig_mark.len()..]);
-            out.push((name, sig));
+    /// The registration table must agree with the Kotlin declarations: same
+    /// names, same order, same parameter and return types.
+    #[test]
+    fn registration_matches_kotlin_declarations() {
+        let kotlin = parse_kotlin_declarations(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../android/app/src/main/java/cloud/fuss/core/FussNative.kt"
+        )));
+        let registered = jni_signatures();
+        assert!(
+            kotlin.len() >= 30,
+            "expected the full Kotlin surface, parsed {} declarations",
+            kotlin.len()
+        );
+        assert_eq!(
+            registered.len(),
+            kotlin.len(),
+            "registered {} bindings but Kotlin declares {}",
+            registered.len(),
+            kotlin.len()
+        );
+        for ((rn, rs), (kn, ks)) in registered.iter().zip(kotlin.iter()) {
+            assert_eq!(rn, kn, "name/order mismatch");
+            assert_eq!(rs, ks, "signature mismatch for {kn}");
         }
-        out
     }
 
-    /// Reads a quoted string starting at the beginning of `s`.
-    fn quoted(s: &str) -> String {
-        let s = s.trim_start();
-        let s = s.strip_prefix('"').expect("quoted string");
-        s[..s.find('"').expect("closing quote")].to_string()
+    /// Every signature must be well formed and describe an instance method.
+    #[test]
+    fn signatures_are_instance_style() {
+        for (name, sig) in jni_signatures() {
+            assert!(sig.starts_with('('), "{name}: signature must start with '('");
+            assert!(sig.contains(')'), "{name}: unbalanced signature {sig}");
+            assert!(
+                !sig.contains("Lcloud/fuss/core/FussNative;"),
+                "{name}: describes a class receiver"
+            );
+        }
     }
 
-    /// Reads a quoted string starting at the beginning of `s`.
-    fn quoted(s: &str) -> String {
-        let s = s.trim_start();
-        let s = s.strip_prefix('"').expect("quoted string");
-        s[..s.find('"').expect("closing quote")].to_string()
+    /// Bindings must take an object receiver, matching Kotlin `object` members.
+    /// Checked structurally: every function in the binding list is looked up in
+    /// the source and must declare `_c: JObject`.
+    #[test]
+    fn bindings_take_object_receiver() {
+        let src = include_str!("lib.rs");
+        for (name, _) in jni_signatures() {
+            let needle = format!("fn Java_cloud_fuss_core_FussNative_{name}(");
+            let at = src.find(&needle).unwrap_or_else(|| panic!("{name}: function not found"));
+            // The receiver is within the first few lines of the declaration.
+            let window = &src[at..(at + 400).min(src.len())];
+            let window = &window[..window.find("{").unwrap_or(window.len())];
+            assert!(
+                window.contains("_c: JObject") || window.contains("_env: JNIEnv, _c: JObject"),
+                "{name}: binding must take a JObject receiver (got: {})",
+                window.lines().nth(1).unwrap_or("").trim()
+            );
+        }
     }
 }
