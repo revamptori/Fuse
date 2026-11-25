@@ -206,7 +206,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_selfTest(
     env: JNIEnv,
     _c: JClass,
 ) -> jstring {
-    let report = match catch_unwind(|| fuss_core::self_test()) {
+    let report = match catch_unwind(fuss_core::self_test) {
         Ok(r) => r,
         Err(_) => vec![("panic".to_string(), false)],
     };

@@ -13,6 +13,10 @@ body_file=$(mktemp)
   echo "<!-- fuss-ci:$marker -->"
   echo "### $title — $status"
   echo ""
+  if [ -n "${GITHUB_SHA:-}" ]; then
+    echo "commit \`${GITHUB_SHA:0:8}\` · run [${GITHUB_RUN_ID:-?}](/${GITHUB_REPOSITORY:-}/actions/runs/${GITHUB_RUN_ID:-})"
+    echo ""
+  fi
   if [ -f "$log" ]; then
     # GitHub comments cap at 65536 chars and the useful lines are the first
     # errors, not the tail. Strip ANSI, then print:
