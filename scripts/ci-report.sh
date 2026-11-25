@@ -14,10 +14,29 @@ body_file=$(mktemp)
   echo "### $title — $status"
   echo ""
   if [ -f "$log" ]; then
+    # GitHub comments cap at 65536 chars, and the useful lines are the first
+    # errors -- not the tail. Strip ANSI codes, then show: every line that looks
+    # like a diagnostic, plus the stage markers, then a short tail for context.
+    clean=$(mktemp)
+    sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' "$log" > "$clean"
     echo '```'
-    # Keep the tail; GitHub comments cap at 65536 chars.
-    tail -c 50000 "$log"
+    {
+      grep -nE '^(e:|w: |error|warning: |FAILURE|What went wrong|\* What went wrong|> |Caused by|!! FAILED|===== )' "$clean" \
+        | head -n 220
+      echo '...'
+      echo '--- last 120 lines ---'
+      tail -n 120 "$clean"
+    } | head -c 52000
     echo '```'
+    echo ""
+    echo "<details><summary>full diagnostics (first 400 lines)</summary>"
+    echo ""
+    echo '```'
+    head -n 400 "$clean" | head -c 30000
+    echo '```'
+    echo ""
+    echo "</details>"
+    rm -f "$clean"
   else
     echo "(no log produced)"
   fi

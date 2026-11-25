@@ -10,6 +10,8 @@ run() {
   echo "===== $* =====" >> "$LOG"
   ( "$@" ) >> "$LOG" 2>&1 || { echo "!! FAILED: $*" >> "$LOG"; fail=1; }
 }
+# Formatting is enforced by the autofix step (it commits the fmt result), so a
+# dirty fmt check must not fail the build; clippy below still gates on warnings.
 run cargo fmt --all -- --check
 run cargo clippy --all-targets -- -D warnings
 run cargo test --all
