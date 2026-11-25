@@ -1,0 +1,17 @@
+# Rust
+/rust/target/
+**/*.rs.bk
+
+# Android / Gradle
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/.idea/
+/android/.kotlin/
+*.iml
+*.hprof
+
+# Build outputs
+/dist/
+/bench-results/

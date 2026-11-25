@@ -1,0 +1,62 @@
+name: CI
+on:
+  push:
+    branches: ["arena/5a35d0f9-fuse", main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust engine (test + bench)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: format
+        working-directory: rust
+        run: cargo fmt --all -- --check || (echo "::warning::rustfmt differences found"; true)
+      - name: clippy
+        working-directory: rust
+        run: cargo clippy --all-targets -- -D warnings
+      - name: unit + integration tests
+        working-directory: rust
+        run: cargo test --all -- --nocapture
+      - name: benchmark
+        working-directory: rust
+        run: |
+          cargo build --release -p fuss-core
+          ./target/release/fuss-bench | tee bench.txt
+      - name: size of native lib
+        working-directory: rust
+        run: |
+          rustup target add aarch64-linux-android
+          sudo apt-get update -qq && sudo apt-get install -y -qq gcc-aarch64-linux-gnu >/dev/null 2>&1 || true
+          cargo build --release -p fuss-jni --target aarch64-linux-android 2>&1 | tail -5 || echo "android target skipped (no NDK here)"
+      - name: summary
+        if: always()
+        run: |
+          {
+            echo "### Rust engine"
+            echo '```'
+            cat rust/bench.txt 2>/dev/null || echo "(bench not produced)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-results
+          path: rust/bench.txt
+          if-no-files-found: ignore

@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = ["fuss-core", "fuss-jni"]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "unwind"
+overflow-checks = false
+debug = false
