@@ -11,20 +11,25 @@ jobs:
       - name: environment
         run: |
           {
-            echo "## probe"
-            echo '```'
-            uname -a
             echo "ANDROID_HOME=$ANDROID_HOME"
             echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-            ls "$ANDROID_HOME" || true
-            ls "$ANDROID_HOME/ndk" || true
-            ls "$ANDROID_HOME/platforms" || true
-            ls "$ANDROID_HOME/cmdline-tools" || true
-            java -version 2>&1 || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+            echo '--- sdk root'; ls "$ANDROID_HOME"
+            echo '--- ndk'; ls "$ANDROID_HOME/ndk" 2>&1
+            echo '--- platforms'; ls "$ANDROID_HOME/platforms" 2>&1
+            echo '--- build-tools'; ls "$ANDROID_HOME/build-tools" 2>&1
+            echo '--- java'; java -version 2>&1
+            echo '--- gradle'; which gradle; gradle --version 2>&1 | head -5
+          } > /tmp/env.txt 2>&1
+          cat /tmp/env.txt
       - uses: dtolnay/rust-toolchain@stable
-      - name: rust
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android
+      - name: rust + targets
         run: |
           cargo --version; rustc --version
-          { echo '```'; cargo --version; rustc --version; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          rustup target list --installed
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: env-probe
+          path: /tmp/env.txt
