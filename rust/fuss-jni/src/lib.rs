@@ -20,7 +20,9 @@ use fuss_core::fsops::{self, CollisionMode, OpStats};
 use fuss_core::listing::{list_dir, ListOptions};
 use fuss_core::path::normalize_absolute;
 use fuss_core::search::{search, SearchOptions};
-use jni::objects::{JByteArray, JClass, JObject, JString};
+use jni::objects::{JByteArray, JObject, JString};
+use jni::NativeMethod;
+use jni::strings::JNIString;
 use jni::sys::{jboolean, jbyteArray, jlong, jstring, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -188,7 +190,7 @@ fn string_vec(env: &mut JNIEnv, arr: JObject) -> Option<Vec<PathBuf>> {
 // ---------------------------------------------------------------------------
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_version(env: JNIEnv, _c: JClass) -> jstring {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_version(env: JNIEnv, _c: JObject) -> jstring {
     match env.new_string(format!(
         "{} (rustc {})",
         fuss_core::VERSION,
@@ -204,7 +206,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_version(env: JNIEnv, _c: 
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_selfTest(
     env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
 ) -> jstring {
     let report = match catch_unwind(fuss_core::self_test) {
         Ok(r) => r,
@@ -228,7 +230,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_selfTest(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_newCancelToken(
     _env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
 ) -> jlong {
     insert_token(CancelToken::new()) as jlong
 }
@@ -236,7 +238,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_newCancelToken(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_cancelToken(
     _env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     handle: jlong,
 ) {
     token_for(handle as u64).cancel();
@@ -245,7 +247,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_cancelToken(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_freeCancelToken(
     _env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     handle: jlong,
 ) {
     let mut guard: Tokens = token_table()
@@ -257,7 +259,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_freeCancelToken(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_progress(
     _env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     handle: jlong,
 ) -> jlong {
     token_for(handle as u64).processed() as jlong
@@ -266,7 +268,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_progress(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_progressTotal(
     _env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     handle: jlong,
 ) -> jlong {
     token_for(handle as u64).total_hint() as jlong
@@ -285,7 +287,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_progressTotal(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_listDir(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
     show_hidden: jboolean,
     sort_key: jni::sys::jint,
@@ -330,7 +332,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_listDir(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_statEntry(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
 ) -> jbyteArray {
     guarded!(env, {
@@ -356,7 +358,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_statEntry(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_exists(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
 ) -> jboolean {
     match path_of(&mut env, &path) {
@@ -374,7 +376,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_exists(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_isDirectory(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
 ) -> jboolean {
     match path_of(&mut env, &path) {
@@ -392,7 +394,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_isDirectory(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_isReadable(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
 ) -> jboolean {
     match path_of(&mut env, &path) {
@@ -407,7 +409,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_isReadable(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_canonicalize(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
 ) -> jstring {
     let raw = match jstr(&mut env, &path) {
@@ -428,7 +430,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_canonicalize(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_mimeType(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     name: JString,
     is_dir: jboolean,
 ) -> jstring {
@@ -447,7 +449,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_mimeType(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_freeSpace(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
 ) -> jlong {
     let p = match path_of(&mut env, &path) {
@@ -510,7 +512,7 @@ fn free_space_of(p: &std::path::Path) -> u64 {
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_totalSpace(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
 ) -> jlong {
     let p = match path_of(&mut env, &path) {
@@ -573,7 +575,7 @@ fn total_space_of(p: &std::path::Path) -> u64 {
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_mounts(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
 ) -> jbyteArray {
     guarded!(env, {
         let mounts = fuss_core::listing::mount_points();
@@ -622,7 +624,7 @@ fn op_result_bytes(env: &mut JNIEnv, stats: &OpStats, outputs: Vec<String>) -> j
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_createFile(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     dir: JString,
     name: JString,
 ) -> jstring {
@@ -649,7 +651,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_createFile(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_createDir(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     dir: JString,
     name: JString,
 ) -> jstring {
@@ -676,7 +678,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_createDir(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_rename(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
     new_name: JString,
 ) -> jstring {
@@ -705,7 +707,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_rename(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_copyBatch(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     sources: JObject,
     dest_dir: JString,
     mode: jni::sys::jint,
@@ -729,7 +731,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_copyBatch(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_moveBatch(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     sources: JObject,
     dest_dir: JString,
     mode: jni::sys::jint,
@@ -753,7 +755,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_moveBatch(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_deleteBatch(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     sources: JObject,
     cancel_handle: jlong,
 ) -> jbyteArray {
@@ -777,7 +779,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_deleteBatch(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_properties(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
 ) -> jbyteArray {
     guarded!(env, {
@@ -813,7 +815,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_properties(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_dirSize(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
     cancel_handle: jlong,
 ) -> jbyteArray {
@@ -845,7 +847,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_dirSize(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_search(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     root: JString,
     query: JString,
     include_hidden: jboolean,
@@ -898,7 +900,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_search(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_largestFiles(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     root: JString,
     limit: jni::sys::jint,
     cancel_handle: jlong,
@@ -929,7 +931,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_largestFiles(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_emptyDirs(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     root: JString,
     limit: jni::sys::jint,
     cancel_handle: jlong,
@@ -958,7 +960,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_emptyDirs(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_typeStats(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     root: JString,
     cancel_handle: jlong,
 ) -> jbyteArray {
@@ -988,7 +990,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_typeStats(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_duplicates(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     root: JString,
     cancel_handle: jlong,
 ) -> jbyteArray {
@@ -1026,7 +1028,7 @@ fn g_sum_wasted(v: &[analyze::DuplicateGroup]) -> u64 {
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_childDirSizes(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     root: JString,
     cancel_handle: jlong,
 ) -> jbyteArray {
@@ -1062,7 +1064,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_childDirSizes(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_listArchive(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
     cancel_handle: jlong,
 ) -> jbyteArray {
@@ -1098,7 +1100,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_listArchive(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_extractArchive(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
     dest: JString,
     cancel_handle: jlong,
@@ -1136,7 +1138,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_extractArchive(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_createArchive(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     sources: JObject,
     archive_path: JString,
     format: JString,
@@ -1181,7 +1183,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_createArchive(
 #[no_mangle]
 pub extern "system" fn Java_cloud_fuss_core_FussNative_isArchive(
     mut env: JNIEnv,
-    _c: JClass,
+    _c: JObject,
     path: JString,
 ) -> jboolean {
     let p = match path_of(&mut env, &path) {
@@ -1245,5 +1247,321 @@ mod tests {
         let payload = r.bytes().unwrap();
         let mut inner = fuss_core::codec::Reader::new(payload);
         assert_eq!(inner.u64(), Some(7));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Symbol registration
+// ---------------------------------------------------------------------------
+
+/// `JNI_OnLoad` registers every binding through `RegisterNatives`. Relying on the
+/// symbolic `Java_<pkg>_<class>_<method>` lookup would bind the *instance*
+/// receiver that Kotlin objects pass to a method that declares a class
+/// receiver; registering explicitly makes the match exact and fails loudly at
+/// library load instead of at the first call.
+///
+/// The table below is the single source of truth: it is checked against the
+/// exported functions by a host test.
+#[no_mangle]
+pub extern "system" fn JNI_OnLoad(vm: jni::JavaVM, _reserved: *mut std::ffi::c_void) -> jni::sys::jint {
+    let mut env = match vm.get_env() {
+        Ok(env) => env,
+        Err(_) => return jni::sys::JNI_ERR,
+    };
+    let class = match env.find_class("cloud/fuss/core/FussNative") {
+        Ok(c) => c,
+        Err(_) => return jni::sys::JNI_ERR,
+    };
+    // Every binding has the same receiver shape (env, object, args...) but a
+    // different return type, so the table is built from raw function pointers.
+    let methods: Vec<NativeMethod> = vec![
+        NativeMethod { name: JNIString::from("version"), sig: JNIString::from("()Ljava/lang/String;"), fn_ptr: Java_cloud_fuss_core_FussNative_version as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("selfTest"), sig: JNIString::from("()Ljava/lang/String;"), fn_ptr: Java_cloud_fuss_core_FussNative_selfTest as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("newCancelToken"), sig: JNIString::from("()J"), fn_ptr: Java_cloud_fuss_core_FussNative_newCancelToken as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("cancelToken"), sig: JNIString::from("(J)V"), fn_ptr: Java_cloud_fuss_core_FussNative_cancelToken as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("freeCancelToken"), sig: JNIString::from("(J)V"), fn_ptr: Java_cloud_fuss_core_FussNative_freeCancelToken as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("progress"), sig: JNIString::from("(J)J"), fn_ptr: Java_cloud_fuss_core_FussNative_progress as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("progressTotal"), sig: JNIString::from("(J)J"), fn_ptr: Java_cloud_fuss_core_FussNative_progressTotal as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("listDir"), sig: JNIString::from("(Ljava/lang/String;ZIZII)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_listDir as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("statEntry"), sig: JNIString::from("(Ljava/lang/String;)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_statEntry as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("exists"), sig: JNIString::from("(Ljava/lang/String;)Z"), fn_ptr: Java_cloud_fuss_core_FussNative_exists as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("isDirectory"), sig: JNIString::from("(Ljava/lang/String;)Z"), fn_ptr: Java_cloud_fuss_core_FussNative_isDirectory as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("isReadable"), sig: JNIString::from("(Ljava/lang/String;)Z"), fn_ptr: Java_cloud_fuss_core_FussNative_isReadable as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("canonicalize"), sig: JNIString::from("(Ljava/lang/String;)Ljava/lang/String;"), fn_ptr: Java_cloud_fuss_core_FussNative_canonicalize as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("mimeType"), sig: JNIString::from("(Ljava/lang/String;Z)Ljava/lang/String;"), fn_ptr: Java_cloud_fuss_core_FussNative_mimeType as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("freeSpace"), sig: JNIString::from("(Ljava/lang/String;)J"), fn_ptr: Java_cloud_fuss_core_FussNative_freeSpace as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("totalSpace"), sig: JNIString::from("(Ljava/lang/String;)J"), fn_ptr: Java_cloud_fuss_core_FussNative_totalSpace as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("mounts"), sig: JNIString::from("()[B"), fn_ptr: Java_cloud_fuss_core_FussNative_mounts as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("createFile"), sig: JNIString::from("(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"), fn_ptr: Java_cloud_fuss_core_FussNative_createFile as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("createDir"), sig: JNIString::from("(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"), fn_ptr: Java_cloud_fuss_core_FussNative_createDir as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("rename"), sig: JNIString::from("(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"), fn_ptr: Java_cloud_fuss_core_FussNative_rename as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("copyBatch"), sig: JNIString::from("([Ljava/lang/String;Ljava/lang/String;IJ)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_copyBatch as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("moveBatch"), sig: JNIString::from("([Ljava/lang/String;Ljava/lang/String;IJ)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_moveBatch as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("deleteBatch"), sig: JNIString::from("([Ljava/lang/String;J)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_deleteBatch as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("properties"), sig: JNIString::from("(Ljava/lang/String;)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_properties as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("dirSize"), sig: JNIString::from("(Ljava/lang/String;J)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_dirSize as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("search"), sig: JNIString::from("(Ljava/lang/String;Ljava/lang/String;ZIJ)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_search as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("largestFiles"), sig: JNIString::from("(Ljava/lang/String;IJ)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_largestFiles as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("emptyDirs"), sig: JNIString::from("(Ljava/lang/String;IJ)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_emptyDirs as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("typeStats"), sig: JNIString::from("(Ljava/lang/String;J)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_typeStats as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("duplicates"), sig: JNIString::from("(Ljava/lang/String;J)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_duplicates as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("childDirSizes"), sig: JNIString::from("(Ljava/lang/String;J)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_childDirSizes as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("listArchive"), sig: JNIString::from("(Ljava/lang/String;J)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_listArchive as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("extractArchive"), sig: JNIString::from("(Ljava/lang/String;Ljava/lang/String;J)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_extractArchive as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("createArchive"), sig: JNIString::from("([Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)[B"), fn_ptr: Java_cloud_fuss_core_FussNative_createArchive as *mut std::ffi::c_void },
+        NativeMethod { name: JNIString::from("isArchive"), sig: JNIString::from("(Ljava/lang/String;)Z"), fn_ptr: Java_cloud_fuss_core_FussNative_isArchive as *mut std::ffi::c_void },
+    ];
+    // SAFETY: every pointer comes from a `#[no_mangle] extern "system"` binding
+    // with a compatible signature, and the names are static.
+    match env.register_native_methods(class, &methods) {
+        Ok(()) => jni::sys::JNI_VERSION_1_6,
+        Err(_) => jni::sys::JNI_ERR,
+    }
+}
+
+
+
+/// Registered JNI names, in table order.
+#[cfg(test)]
+pub fn binding_names() -> Vec<&'static str> {
+    vec![
+        "version",
+        "selfTest",
+        "newCancelToken",
+        "cancelToken",
+        "freeCancelToken",
+        "progress",
+        "progressTotal",
+        "listDir",
+        "statEntry",
+        "exists",
+        "isDirectory",
+        "isReadable",
+        "canonicalize",
+        "mimeType",
+        "freeSpace",
+        "totalSpace",
+        "mounts",
+        "createFile",
+        "createDir",
+        "rename",
+        "copyBatch",
+        "moveBatch",
+        "deleteBatch",
+        "properties",
+        "dirSize",
+        "search",
+        "largestFiles",
+        "emptyDirs",
+        "typeStats",
+        "duplicates",
+        "childDirSizes",
+        "listArchive",
+        "extractArchive",
+        "createArchive",
+        "isArchive",
+    ]
+}
+
+/// Registered JNI signatures, in table order. Kept beside the table so a test
+/// can assert both are in sync and in the same order.
+#[cfg(test)]
+pub fn jni_signatures() -> Vec<&'static str> {
+    vec![
+        "()Ljava/lang/String;",
+        "()Ljava/lang/String;",
+        "()J",
+        "(J)V",
+        "(J)V",
+        "(J)J",
+        "(J)J",
+        "(Ljava/lang/String;ZIZII)[B",
+        "(Ljava/lang/String;)[B",
+        "(Ljava/lang/String;)Z",
+        "(Ljava/lang/String;)Z",
+        "(Ljava/lang/String;)Z",
+        "(Ljava/lang/String;)Ljava/lang/String;",
+        "(Ljava/lang/String;Z)Ljava/lang/String;",
+        "(Ljava/lang/String;)J",
+        "(Ljava/lang/String;)J",
+        "()[B",
+        "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+        "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+        "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+        "([Ljava/lang/String;Ljava/lang/String;IJ)[B",
+        "([Ljava/lang/String;Ljava/lang/String;IJ)[B",
+        "([Ljava/lang/String;J)[B",
+        "(Ljava/lang/String;)[B",
+        "(Ljava/lang/String;J)[B",
+        "(Ljava/lang/String;Ljava/lang/String;ZIJ)[B",
+        "(Ljava/lang/String;IJ)[B",
+        "(Ljava/lang/String;IJ)[B",
+        "(Ljava/lang/String;J)[B",
+        "(Ljava/lang/String;J)[B",
+        "(Ljava/lang/String;J)[B",
+        "(Ljava/lang/String;J)[B",
+        "(Ljava/lang/String;Ljava/lang/String;J)[B",
+        "([Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)[B",
+        "(Ljava/lang/String;)Z",
+    ]
+}
+
+/// Names as the table lists them, re-derived from the table's own text: the
+/// ordering check in the tests compares that against `binding_names()`.
+#[cfg(test)]
+pub fn registration_names() -> Vec<&'static str> {
+    let src = include_str!("lib.rs");
+    let mut out = Vec::new();
+    for line in src.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("NativeMethod { name: JNIString::from(\"") {
+            out.push(&rest[..rest.find('"').unwrap()]);
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod registration_tests {
+
+    /// The registration table must agree with the Kotlin declarations: same
+    /// names in the same order, and each signature must describe exactly the
+    /// Kotlin parameter/return types. Kotlin `object` members are *instance*
+    /// methods, so the receiver is an object (`JObject`), never a `JClass`.
+    ///
+    /// Signatures are parsed out of the table source with a naive splitter on
+    /// purpose: the point is to catch a binding whose declared shape drifted
+    /// from what `FussNative.kt` says, not to reimplement a JNI type parser.
+    #[test]
+    fn registration_matches_kotlin_declarations() {
+        let table = parse_table_from_source(include_str!("lib.rs"));
+        let kotlin = parse_kotlin_declarations(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../android/app/src/main/java/cloud/fuss/core/FussNative.kt"
+        )));
+        assert!(
+            kotlin.len() >= 30,
+            "expected the full Kotlin surface, parsed {} declarations",
+            kotlin.len()
+        );
+        assert_eq!(
+            table.len(),
+            kotlin.len(),
+            "table has {} entries, Kotlin declares {}",
+            table.len(),
+            kotlin.len()
+        );
+        for ((tn, ts), (kn, ks)) in table.iter().zip(kotlin.iter()) {
+            assert_eq!(tn, kn, "name/order mismatch");
+            assert_eq!(ts, ks, "signature mismatch for {kn}");
+        }
+    }
+
+    /// Every signature string must be well formed and receiver-free.
+    #[test]
+    fn signatures_are_instance_style() {
+        for (name, sig) in parse_table_from_source(include_str!("lib.rs")) {
+            assert!(sig.starts_with('('), "{name}: signature must start with '('");
+            assert!(sig.ends_with(')') || sig.contains(")"), "{name}: unbalanced signature {sig}");
+            assert!(!sig.starts_with("(Lcloud"), "{name}: looks like a static (class receiver) signature");
+            assert!(sig.len() < 128, "{name}: signature implausibly long");
+        }
+    }
+
+    fn jni_type(kotlin: &str) -> Option<&'static str> {
+        Some(match kotlin.trim() {
+            "String" | "String?" => "Ljava/lang/String;",
+            "Long" => "J",
+            "Int" => "I",
+            "Boolean" => "Z",
+            "ByteArray?" | "ByteArray" => "[B",
+            "Array<String>" => "[Ljava/lang/String;",
+            "Unit" => "V",
+            _ => return None,
+        })
+    }
+
+    /// (name, JNI descriptor) for each `external fun` in FussNative.kt.
+    pub(super) fn parse_kotlin_declarations(src: &str) -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        let mut lines = src.lines().peekable();
+        while let Some(line) = lines.next() {
+            let line = line.trim();
+            let Some(rest) = line.strip_prefix("external fun ") else { continue };
+            let name = rest[..rest.find('(').expect("declaration has '('")].trim().to_string();
+            let mut decl = rest.to_string();
+            // Multi-line declarations: keep appending until parens balance.
+            while !balanced(&decl) {
+                decl.push(' ');
+                decl.push_str(lines.next().expect("unterminated declaration").trim());
+            }
+            let close = matching_paren(&decl);
+            let params = &decl[decl.find('(').unwrap() + 1..close];
+            let tail = decl[close + 1..].trim();
+            let mut sig = String::from("(");
+            for p in params.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+                let ty = p.split(':').nth(1).expect("parameter has a type").trim();
+                sig.push_str(jni_type(ty).unwrap_or_else(|| panic!("unmapped type {ty}")));
+            }
+            sig.push(')');
+            if let Some(rt) = tail.strip_prefix(':') {
+                sig.push_str(jni_type(rt.trim()).unwrap_or_else(|| panic!("unmapped return {rt}")));
+            } else {
+                sig.push('V');
+            }
+            out.push((name, sig));
+        }
+        out
+    }
+
+    fn balanced(s: &str) -> bool {
+        s.matches('(').count() == s.matches(')').count()
+    }
+
+    fn matching_paren(s: &str) -> usize {
+        let mut depth = 0;
+        for (i, ch) in s.char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return i;
+                    }
+                }
+                _ => {}
+            }
+        }
+        panic!("unbalanced declaration: {s}");
+    }
+
+    /// (name, descriptor) pairs from the `NativeMethod { ... }` table.
+    pub(super) fn parse_table_from_source(src: &str) -> Vec<(String, String)> {
+        // Table lines are generated with this exact shape:
+        //   NativeMethod { name: JNIString::from("x"), sig: JNIString::from("(J)V"), ... },
+        // Splitting on the two markers is enough and keeps the test independent
+        // of formatting details like line length.
+        let name_mark = "name: JNIString::from(";
+        let sig_mark = "sig: JNIString::from(";
+        let mut out = Vec::new();
+        for line in src.lines() {
+            let line = line.trim();
+            if !line.starts_with("NativeMethod {") {
+                continue;
+            }
+            let Some(name_pos) = line.find(name_mark) else { continue };
+            let Some(sig_pos) = line.find(sig_mark) else { continue };
+            let name = quoted(&line[name_pos + name_mark.len()..]);
+            let sig = quoted(&line[sig_pos + sig_mark.len()..]);
+            out.push((name, sig));
+        }
+        out
+    }
+
+    /// Reads a quoted string starting at the beginning of `s`.
+    fn quoted(s: &str) -> String {
+        let s = s.trim_start();
+        let s = s.strip_prefix('"').expect("quoted string");
+        s[..s.find('"').expect("closing quote")].to_string()
     }
 }

@@ -41,9 +41,15 @@ Android specifics live in Kotlin, and the boundary between them is small.**
 
 ### Calling direction
 
-Kotlin → Rust only. `cloud.fuss.core.FussNative` declares `external fun`s whose
-names follow `Java_cloud_fuss_core_FussNative_<name>`; `fuss-jni/src/lib.rs`
-implements them. Every call is wrapped by `FsRepository`, which:
+Kotlin → Rust only. `cloud.fuss.core.FussNative` is a Kotlin `object`, so its
+`external fun`s are *instance* methods: JNI hands the native side the singleton
+as the second argument (an object, not a class). The library therefore binds
+every function explicitly in `JNI_OnLoad` via `RegisterNatives`, with the exact
+descriptors the Kotlin declarations use, instead of relying on the symbolic
+`Java_cloud_fuss_core_FussNative_<name>` lookup, which would assume a static
+receiver and fail at the first call. A host test
+(`registration_matches_kotlin_declarations`) parses `FussNative.kt` and fails the
+build if the registration table and the Kotlin surface ever disagree. Every call is wrapped by `FsRepository`, which:
 
 * switches to `Dispatchers.IO`,
 * allocates a cancel handle for operations that can run long and frees it in a
