@@ -60,6 +60,18 @@ body_file=$(mktemp)
     echo '--- last 60 lines ---'
     tail -n 60 "$clean"
     echo '```'
+    # Benchmarks are reported, never auto-committed: on a shared runner the same
+    # binary measures 2.6x apart between runs, so a committed sheet either churns
+    # on every push or has to ignore real regressions. The sheet in the repo is a
+    # deliberate measurement (scripts/bench-local.sh); this is each run's.
+    if grep -q '^operation .*median' "$clean"; then
+      echo ''
+      echo '#### benchmarks from this run'
+      echo ''
+      echo '```'
+      awk '/^operation[[:space:]]+median/ {on=1} on {print} /^VmRSS:/ {on=0}' "$clean"
+      echo '```'
+    fi
     rm -f "$clean"
   else
     echo "(no log produced)"

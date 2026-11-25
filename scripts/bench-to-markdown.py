@@ -84,11 +84,16 @@ lines = [line.rstrip() for line in block.splitlines() if line.strip()]
 md = [
     "# Fuss engine benchmarks",
     "",
-    "Generated automatically by `.github/workflows/ci.yml` from the output of",
+    "Measured with `scripts/bench-local.sh` from the output of",
     "`rust/fuss-core/src/bin/fuss-bench.rs` on a GitHub Actions `ubuntu-22.04`",
     "runner (x86-64, 4 vCPU, ext4). These numbers characterise the Rust engine on",
     "desktop-class hardware with a warm page cache; they are **not** phone numbers.",
     "On-device figures must be measured on a real device (see docs/PERFORMANCE.md).",
+    "",
+    "This sheet is updated deliberately, not on every CI run: a shared runner",
+    "measures the same binary a few times apart between runs, so numbers are only",
+    "re-committed when they are meant to be looked at. Every run's numbers are",
+    "posted in the PR comment by `scripts/ci-report.sh`.",
     "",
     "| " + " | ".join(["operation", "median", "p90", "iterations"]) + " |",
     "|" + "---|" * 4,
@@ -110,7 +115,8 @@ md += [
     "- **cancel a 256 MiB copy** — latency from `cancel()` to the operation returning.",
     "- **encode 200-entry listing chunk** — the per-chunk JNI payload cost.",
     "",
-    "Regenerate locally with `scripts/bench-local.sh`.",
+    "Regenerate with `scripts/bench-local.sh` (add `--if-stale` to keep the sheet",
+    "when the new numbers are within noise of the committed ones).",
 ]
 md.append("")
 md.append(f"Engine source digest: `{engine_digest()}`")

@@ -1,10 +1,16 @@
 # Fuss engine benchmarks
 
-Generated automatically by `.github/workflows/ci.yml` from the output of
+Measured from the output of
 `rust/fuss-core/src/bin/fuss-bench.rs` on a GitHub Actions `ubuntu-22.04`
 runner (x86-64, 4 vCPU, ext4). These numbers characterise the Rust engine on
 desktop-class hardware with a warm page cache; they are **not** phone numbers.
 On-device figures must be measured on a real device (see docs/PERFORMANCE.md).
+
+This sheet records one deliberate measurement and is updated on purpose, not on
+every CI run. The same binary on the same runner has measured list-10k anywhere
+from 9.1 ms to 23.7 ms across runs, so chaining commits to a number would either
+churn on every push or hide a real regression. Each run's own numbers are posted
+in the PR comment; refresh this sheet with `scripts/bench-local.sh`.
 
 | operation | median | p90 | iterations |
 |---|---|---|---|
