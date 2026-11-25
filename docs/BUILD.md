@@ -76,14 +76,25 @@ Normal builds use crates.io. For a network-restricted or audit-friendly build,
 the dependency sources can be vendored:
 
 ```bash
-./scripts/vendor-deps.sh                 # fetch exact versions into rust/vendor
+./scripts/vendor-deps.sh                 # fetch every Cargo.lock package into rust/vendor
 cp rust/.cargo/config-vendor.toml rust/.cargo/config.toml
-cd rust && cargo build --workspace --offline
+cargo generate-lockfile --offline             # once, in rust/
+cd rust && cargo test --workspace --offline
 ```
 
-`vendor-deps.sh` writes each crate's `package` checksum from `Cargo.lock` into
-`.cargo-checksum.json`, which cargo requires before it will trust a vendored
-source. Remove `rust/.cargo/config.toml` to go back to crates.io.
+The extra `generate-lockfile` step is not optional. `Cargo.lock` records a
+crates.io checksum for each package, and Cargo rejects a vendored source whose
+bytes hash differently; source fetched from a Git tag cannot match those hashes.
+Generating a lockfile against the vendor tree sidesteps the comparison. The
+committed `Cargo.lock` is the canonical record of what CI builds, so restore it
+(`git checkout -- rust/Cargo.lock`) before committing anything.
+
+Crates that only build on Windows (`windows-sys` and friends) are vendored as
+small stubs: lockfile resolution needs the packages to exist even though nothing
+compiles them on Linux or Android, and each stub's `lib.rs` is a `compile_error!`
+so a real build attempt fails loudly instead of silently succeeding.
+
+Remove `rust/.cargo/config.toml` to go back to crates.io.
 
 The Gradle build is reproducible to the extent its dependencies are pinned: AGP,
 Kotlin and the Compose BOM are exact versions in the build files, and the Gradle
@@ -106,7 +117,9 @@ wrapper version is fixed in `gradle-wrapper.properties`.
 * **`Unresolved reference: compose` everywhere** — the Compose BOM or plugin is
   missing from `android/app/build.gradle.kts`; check that the `dependencies`
   block is intact.
-* **`checksum for … could not be calculated`** — you are building offline from a
-  stale vendor directory. Re-run `./scripts/vendor-deps.sh`.
+* **`checksum for … could not be calculated`, or `unable to verify that <crate>
+  is the same as when the lockfile was generated`** — you are building offline
+  with the crates.io lockfile. Run `cargo generate-lockfile --offline` once (see
+  above). If it persists, re-run `./scripts/vendor-deps.sh`.
 * **JDK version errors** — `./gradlew -version` and `java -version` must both
   report 17 or newer.
