@@ -1,0 +1,67 @@
+name: Release
+
+# Builds installable, signed-with-a-debug-key APKs and attaches them to a GitHub
+# release. A real distribution key can be supplied through repository secrets;
+# without one the artifacts are clearly labelled as test-signed.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: Release APKs
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          key: android-release
+      - name: sdk packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+      - name: build native
+        run: ./scripts/build-rust-android.sh
+      - name: assemble
+        env:
+          FUSS_SKIP_RUST: "1"
+        run: |
+          cd android
+          ./gradlew --no-daemon assembleRelease assembleDebug
+      - name: collect
+        run: |
+          mkdir -p dist
+          find android/app/build/outputs/apk -name '*.apk' -print0 | while IFS= read -r -d '' f; do
+            # Flatten to a readable name: fuss-<abi>-<variant>.apk
+            base=$(basename "$f")
+            abi=$(echo "$f" | grep -oE '(arm64-v8a|armeabi-v7a|x86_64|universal)' | head -1)
+            variant=$(echo "$f" | grep -oE '(debug|release)' | head -1)
+            cp "$f" "dist/fuss-${variant}-${abi}.apk"
+          done
+          (cd dist && sha256sum ./*.apk > SHA256SUMS.txt && ls -la)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fuss-release-apks
+          path: dist/
+      - name: publish
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.apk dist/SHA256SUMS.txt \
+            --title "Fuss $GITHUB_REF_NAME" \
+            --notes-file docs/RELEASE_NOTES.md \
+            --verify-tag || gh release upload "$GITHUB_REF_NAME" dist/*.apk dist/SHA256SUMS.txt --clobber

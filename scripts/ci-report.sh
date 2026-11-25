@@ -25,21 +25,33 @@ body_file=$(mktemp)
     grep -E '^(=====|!! FAILED|BUILD |FAILURE)' "$clean" | head -n 40
     echo ''
     echo '--- errors (max 3 per file) ---'
-    # Kotlin reports `e: file:.../f.kt:LINE:COL Message`. Keep at most 3 distinct
-    # messages per file so important files are not drowned out by cascades.
-    grep -E '^e: |^error|^warning: |What went wrong|^\* Try|^> [A-Za-z]' "$clean" \
-      | awk '
-          /^e: / {
-            line=$0
-            sub(/^e: file:[^ ]*\//, "", line)
-            split(line, a, ":")
-            f=a[1]
-            msg=$0; sub(/^e: file:[^:]*:[0-9]+:[0-9]+ /, "", msg)
-            if (seen[f "|" msg]++ == 0 && cnt[f]++ < 3) print
-            next
-          }
-          { print }
-        ' | head -n 200
+    # Diagnostics: Kotlin uses `e: file:…`, Rust uses `error: …` followed by
+    # `  --> file:line`. Print each diagnostic plus the following context lines
+    # so the location is never lost. Cap per-file messages to keep it readable.
+    awk '
+      function flush() {
+        for (i = 0; i < nctx; i++) print ctx[i]
+        nctx = 0
+      }
+      /^e: / || /^(error|warning)(\[[a-z:_-]+\])?: / || /^BUILD |^FAILURE|What went wrong|^> [A-Za-z]|^!! FAILED|^===== / {
+        flush()
+        line = $0
+        # de-duplicate Kotlin cascades per file
+        if (line ~ /^e: /) {
+          key = line
+          sub(/:[0-9]+:[0-9]+ .*/, "", key)
+          msg = line
+          sub(/^e: file:[^ ]*:[0-9]+:[0-9]+ /, "", msg)
+          k = key "|" msg
+          if (seen[k]++ > 0) next
+        }
+        print
+        armed = 1
+        next
+      }
+      armed && nctx < 6 { ctx[nctx++] = $0 }
+      END { flush() }
+    ' "$clean" | head -n 260
     echo ''
     echo '--- last 60 lines ---'
     tail -n 60 "$clean"

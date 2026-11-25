@@ -46,7 +46,7 @@ type Tokens = MutexGuard<'static, Vec<(u64, Arc<CancelToken>)>>;
 static TOKENS: OnceLock<TokenTable> = OnceLock::new();
 
 fn token_table() -> &'static TokenTable {
-    TOKENS.get_or_init(|| Mutex::new(Vec::new()))
+    TOKENS.get_or_init(Mutex::default)
 }
 
 fn insert_token(token: Arc<CancelToken>) -> u64 {
@@ -69,7 +69,7 @@ fn token_for(handle: u64) -> Arc<CancelToken> {
     guard
         .iter()
         .find(|(h, _)| *h == handle)
-        .map(|(_, t)| t.clone())
+        .map(|entry| Arc::clone(&entry.1))
         .unwrap_or_else(CancelToken::new)
 }
 
