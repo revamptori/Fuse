@@ -110,7 +110,7 @@ pub fn largest_files(root: &Path, limit: usize, cancel: &CancelToken) -> Result<
         .into_iter()
         .map(|std::cmp::Reverse((size, path, modified))| FileHit { path, size, modified })
         .collect();
-    v.sort_by(|a, b| b.size.cmp(&a.size));
+    v.sort_by_key(|a| std::cmp::Reverse(a.size));
     Ok(v)
 }
 
@@ -196,7 +196,7 @@ pub fn type_stats(root: &Path, cancel: &CancelToken) -> Result<Vec<TypeStat>> {
         .into_values()
         .map(|(kind, count, bytes)| TypeStat { kind, count, bytes })
         .collect();
-    out.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+    out.sort_by_key(|a| std::cmp::Reverse(a.bytes));
     Ok(out)
 }
 
@@ -295,7 +295,7 @@ pub fn find_duplicates(
             }
         }
     }
-    groups.sort_by(|a, b| b.wasted.cmp(&a.wasted));
+    groups.sort_by_key(|a| std::cmp::Reverse(a.wasted));
     Ok(groups)
 }
 
@@ -350,7 +350,7 @@ pub fn child_dir_sizes(root: &Path, cancel: &CancelToken) -> Result<Vec<DirSize>
             out.push(dir_size(&p, cancel)?);
         }
     }
-    out.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+    out.sort_by_key(|a| std::cmp::Reverse(a.bytes));
     Ok(out)
 }
 

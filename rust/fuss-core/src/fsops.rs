@@ -148,7 +148,7 @@ pub fn copy_stream(
             Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
             Err(e) => return Err(FsError::from_io_pathless(e)),
         };
-        dst.write_all(&buf[..n]).map_err(|e| FsError::from_io_pathless(e))?;
+        dst.write_all(&buf[..n]).map_err(FsError::from_io_pathless)?;
         total += n as u64;
         cancel.add_processed(n as u64);
     }
@@ -324,7 +324,7 @@ pub fn copy_recursive(
         }
     }
     // Preserve directory mtime after its children are written.
-    if let Some(t) = src_meta.modified().ok() {
+    if let Ok(t) = src_meta.modified() {
         set_file_times(&final_dest, t);
     }
     Ok(final_dest)

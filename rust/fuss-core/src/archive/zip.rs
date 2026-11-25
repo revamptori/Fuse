@@ -84,7 +84,7 @@ fn dos_datetime_to_unix(date: u16, time: u16) -> i64 {
     let sec = ((time & 0x1F) * 2) as i64;
     let min = ((time >> 5) & 0x3F) as i64;
     let hour = ((time >> 11) & 0x1F) as i64;
-    if month < 1 || month > 12 || day < 1 || day > 31 {
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
         return 0;
     }
     // Days-from-civil algorithm (Howard Hinnant), valid for these ranges.

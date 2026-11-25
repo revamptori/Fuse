@@ -340,11 +340,9 @@ impl<R: Read> Read for GzipDecoder<R> {
             return Ok(0);
         }
         loop {
-            if self.member.is_none() {
-                if !self.begin_member()? {
-                    self.finished = true;
-                    return Ok(0);
-                }
+            if self.member.is_none() && !self.begin_member()? {
+                self.finished = true;
+                return Ok(0);
             }
             let have_input = self.refill()?;
             let flush = if have_input { MZFlush::None } else { MZFlush::Finish };

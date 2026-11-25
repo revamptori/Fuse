@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Fuss launcher mark: a folder silhouette with a slash through it, drawn as
+    plain paths on a 108x108 adaptive canvas. No gradients, no embedded fonts,
+    ~2 KB of vector data.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,40 L48,40 L53,46 L78,46 A3,3 0 0 1 81,49 L81,70 A3,3 0 0 1 78,73 L30,73 A3,3 0 0 1 27,70 L27,43 A3,3 0 0 1 30,40 Z"
+        android:fillAlpha="0.92" />
+    <path
+        android:fillColor="#2F6D5B"
+        android:pathData="M37,59 L71,59 L71,62 L37,62 Z" />
+</vector>

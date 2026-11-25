@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 /// are streamed in pages by the caller using `offset`.
 pub const MAX_ENTRIES_PER_CALL: usize = 200_000;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct ListOptions {
     pub show_hidden: bool,
     /// Also resolve symlink targets when the entry itself is a link.
@@ -30,12 +30,6 @@ pub struct ListOptions {
     pub offset: usize,
     /// Hard cap on returned entries; 0 means "no cap beyond MAX_ENTRIES_PER_CALL".
     pub limit: usize,
-}
-
-impl Default for ListOptions {
-    fn default() -> Self {
-        ListOptions { show_hidden: false, follow_symlinks: false, offset: 0, limit: 0 }
-    }
 }
 
 /// Listing result with directory-level metadata the UI needs for the header.
@@ -59,7 +53,7 @@ pub fn list_dir(path: &Path, opts: ListOptions, cancel: &CancelToken) -> Result<
             .with_path(path.to_string_lossy()));
     }
     let rd = fs::read_dir(path).map_err(|e| FsError::from_io_path(e, path))?;
-    let cap = opts.limit.max(1).min(4096);
+    let cap = opts.limit.clamp(1, 4096);
     let mut out = Vec::with_capacity(cap);
     let mut scanned = 0usize;
     let mut skipped = 0usize;

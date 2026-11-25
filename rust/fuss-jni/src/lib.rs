@@ -177,7 +177,7 @@ fn string_vec(env: &mut JNIEnv, arr: JObject) -> Option<Vec<PathBuf>> {
 // ---------------------------------------------------------------------------
 
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_version(mut env: JNIEnv, _c: JClass) -> jstring {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_version(env: JNIEnv, _c: JClass) -> jstring {
     match env.new_string(format!(
         "{} (rustc {})",
         fuss_core::VERSION,
@@ -191,7 +191,7 @@ pub extern "system" fn Java_cloud_fuss_core_FussNative_version(mut env: JNIEnv, 
 /// Runs the engine self-test; returns "name=ok;name=fail" style report or
 /// throws. Used by the app's diagnostics screen and by instrumented tests.
 #[no_mangle]
-pub extern "system" fn Java_cloud_fuss_core_FussNative_selfTest(mut env: JNIEnv, _c: JClass) -> jstring {
+pub extern "system" fn Java_cloud_fuss_core_FussNative_selfTest(env: JNIEnv, _c: JClass) -> jstring {
     let report = match catch_unwind(|| fuss_core::self_test()) {
         Ok(r) => r,
         Err(_) => vec![("panic".to_string(), false)],

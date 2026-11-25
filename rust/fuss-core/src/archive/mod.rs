@@ -35,9 +35,9 @@ pub fn detect(path: &Path) -> ArchiveFormat {
         ArchiveFormat::Tar
     } else if name.ends_with(".gz") {
         ArchiveFormat::Gzip
-    } else if name.ends_with(".bz2") || name.ends_with(".xz") || name.ends_with(".7z") || name.ends_with(".rar") || name.ends_with(".zst") {
-        ArchiveFormat::Unsupported
     } else {
+        // bz2/xz/7z/rar/zst are known archive extensions the engine cannot open;
+        // magic sniffing below may still find a supported container inside.
         ArchiveFormat::Unsupported
     };
     if by_name != ArchiveFormat::Unsupported {
