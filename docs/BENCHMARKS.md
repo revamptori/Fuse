@@ -8,25 +8,25 @@ On-device figures must be measured on a real device (see docs/PERFORMANCE.md).
 
 | operation | median | p90 | iterations |
 |---|---|---|---|
-| list 10k files (no stat sort) | 13.13ms | 14.69ms | 20 |
-| list 10k files + natural sort | 13.38ms | 14.35ms | 20 |
-| list 10k files + show hidden | 12.66ms | 14.93ms | 20 |
-| sort 10k entries by size | 13.64ms | 15.55ms | 20 |
-| copy 500 x 4 KiB files | 278.20ms | 305.23ms | 5 |
-| copy 256 MiB (streamed) | 487.74ms | 780.79ms | 3 |
-| dir_size 10k files | 10.42ms | 12.90ms | 10 |
-| search 'file_099' in 10k | 12.43ms | 14.89ms | 10 |
-| zip create 500 x 4 KiB | 43.60ms | 49.66ms | 3 |
-| zip list 500 entries | 0.18ms | 0.22ms | 10 |
-| delete tree (2 000 files) | 40.98ms | 51.50ms | 5 |
-| cancel a 256 MiB copy | 0.03ms | 0.06ms | 5 |
+| list 10k files (no stat sort) | 26.17ms | 26.59ms | 20 |
+| list 10k files + natural sort | 34.06ms | 34.47ms | 20 |
+| list 10k files + show hidden | 26.13ms | 26.58ms | 20 |
+| sort 10k entries by size | 33.53ms | 33.78ms | 20 |
+| copy 500 x 4 KiB files | 235.92ms | 269.81ms | 5 |
+| copy 256 MiB (streamed) | 1480.69ms | 1519.74ms | 3 |
+| dir_size 10k files | 23.86ms | 24.50ms | 10 |
+| search 'file_099' in 10k | 24.94ms | 25.38ms | 10 |
+| zip create 500 x 4 KiB | 43.24ms | 85.70ms | 3 |
+| zip list 500 entries | 0.15ms | 0.18ms | 10 |
+| delete tree (2 000 files) | 251.40ms | 258.07ms | 5 |
+| cancel a 256 MiB copy | 0.03ms | 0.03ms | 5 |
 | encode 200-entry listing chunk | 0.00ms | 0.00ms | 200 |
 
 Process high-water mark during the whole benchmark:
 
 ```
-VmHWM:	    4168 kB
-VmRSS:	    3272 kB
+VmHWM:	    4316 kB
+VmRSS:	    3484 kB
 ```
 
 ## What each line measures
@@ -38,5 +38,4 @@ VmRSS:	    3272 kB
 - **cancel a 256 MiB copy** — latency from `cancel()` to the operation returning.
 - **encode 200-entry listing chunk** — the per-chunk JNI payload cost.
 
-Regenerate locally with `scripts/bench-local.sh`. The curated summary and the
-device-measurement gap live in [PERFORMANCE_RESULTS.md](PERFORMANCE_RESULTS.md).
+Regenerate locally with `scripts/bench-local.sh`.
