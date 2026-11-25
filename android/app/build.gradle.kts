@@ -8,8 +8,8 @@ plugins {
 }
 
 // Signing: a release keystore can be provided through environment variables
-// (CI) or ~/.fuss-keystore.properties. Without one, releases are unsigned and
-// CI produces a debug-signed APK for sideloading instead.
+// (CI) or ~/.fuss-keystore.properties. Without one the release variant is left
+// unsigned; CI then ships the debug-signed APK for sideloading instead.
 val keystoreProps = Properties().apply {
     val f = File(System.getProperty("user.home"), ".fuss-keystore.properties")
     if (f.exists()) f.inputStream().use { load(it) }
@@ -82,6 +82,40 @@ android {
         }
     }
     sourceSets["main"].jniLibs.srcDirs("src/main/jniLibs")
+}
+
+// Every dependency here earns its place; nothing is pulled in "just in case".
+// ---------------------------------------------------------------------------
+// androidx.core:ktx                  FileProvider, edge-to-edge helpers (small)
+// androidx.activity:activity-compose setContent + BackHandler + ActivityResult
+// androidx.lifecycle:viewmodel-compose  viewModel() for BrowseViewModel
+// compose BOM + ui/material3/foundation  the whole UI; Material3 is the design
+//                                    system the brief asks for
+// material-icons-extended           outlined pictograms (folder/archive/...)
+// coil-compose                      image thumbnails, decode/caching done by
+//                                    Coil instead of hand-rolled bitmaps
+// documentfile                      SAF SAF-root enumeration (framework wrapper,
+//                                    no transitive weight)
+// junit                             the only test dependency
+dependencies {
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.documentfile:documentfile:1.0.1")
+
+    val composeBom = platform("androidx.compose:compose-bom:2024.10.01")
+    implementation(composeBom)
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
+    debugImplementation("androidx.compose.ui:ui-tooling")
+
+    testImplementation("junit:junit:4.13.2")
 }
 
 // Build the Rust engine for every ABI that is being packaged by delegating to
