@@ -59,6 +59,19 @@ jobs:
           test_apk android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk || rc=1
           for f in android/app/build/outputs/apk/release/*.apk; do test_apk "$f" || rc=1; done
           exit $rc
+      # A signed APK can still be unlaunchable: 1.0.0 shipped with a manifest
+      # naming cloud.fuss.MainActivity while the class is cloud.fuss.app
+      # .MainActivity, so every install crashed before the first frame. Read the
+      # packaged artifact and prove the app can actually start.
+      - name: launch checks on packaged APKs
+        run: |
+          rc=0
+          ./scripts/check-apk.sh android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk arm64-v8a || rc=1
+          ./scripts/check-apk.sh android/app/build/outputs/apk/release/app-arm64-v8a-release.apk arm64-v8a || rc=1
+          ./scripts/check-apk.sh android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk armeabi-v7a || rc=1
+          ./scripts/check-apk.sh android/app/build/outputs/apk/release/app-x86_64-release.apk x86_64 || rc=1
+          ./scripts/check-apk.sh android/app/build/outputs/apk/release/app-universal-release.apk || rc=1
+          exit $rc
       - name: report
         if: always()
         env:

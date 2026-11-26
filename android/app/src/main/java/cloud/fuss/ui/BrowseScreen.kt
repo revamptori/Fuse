@@ -251,6 +251,7 @@ fun BrowseScreen(
                         subtitle = when (s.errorCode) {
                             "permission_denied" -> "Use \"Add folder access\" on the home screen to open it through the system picker."
                             "not_found" -> "It may have been moved or deleted."
+                            "engine_missing" -> "This build has no engine for your device's CPU type. Install the universal APK."
                             else -> null
                         },
                     )

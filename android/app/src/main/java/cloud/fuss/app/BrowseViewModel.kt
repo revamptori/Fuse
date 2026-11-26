@@ -108,6 +108,29 @@ class BrowseViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------ load
 
+    /**
+     * True when the native engine is loaded. Probed once, lazily: touching
+     * [FussNative] runs its `System.loadLibrary` initialiser, which throws
+     * [UnsatisfiedLinkError] when the .so is missing for this ABI.
+     */
+    private val engineAvailable: Boolean by lazy {
+        try {
+            FussNative.version()
+            true
+        } catch (t: Throwable) {
+            _ui.update {
+                it.copy(
+                    state = it.state.copy(
+                        loading = false,
+                        error = "The file engine could not be loaded on this device.",
+                        errorCode = "engine_missing",
+                    ),
+                )
+            }
+            false
+        }
+    }
+
     fun open(path: String, record: Boolean = true) {
         loadJob?.cancel()
         _ui.update {
@@ -117,6 +140,11 @@ class BrowseViewModel(app: Application) : AndroidViewModel(app) {
         }
         loadJob = viewModelScope.launch {
             val s = _ui.value.state
+            // UnsatisfiedLinkError is an Error, not an Exception, so a missing or
+            // ABI-mismatched libfuss_core.so would escape every catch below and
+            // kill the process on the first frame — the same "opens and closes"
+            // symptom as a bad manifest entry. Report it in the UI instead.
+            if (!engineAvailable) return@launch
             try {
                 val page = repo.list(path, s.showHidden, SortSpec(s.sortKey, s.ascending))
                 if (_ui.value.state.path != path) return@launch
